@@ -1,86 +1,141 @@
 import streamlit as st
 import pandas as pd
 import plotly.graph_objects as go
+from datetime import datetime
+import io
 
-# --- CONFIGURAÇÃO DE CORES (Baseado no seu código React) ---
-COLOR_ENTRADA = ['#059669', '#10b981', '#34d399']
-COLOR_SAIDA = ['#be123c', '#e11d48', '#f43f5e']
+# --- 1. CONFIGURAÇÃO DA PÁGINA ---
+st.set_page_config(page_title="Caixa Louvor Eterno", page_icon="💰", layout="wide")
 
-st.set_page_config(page_title="Caixa Louvor Eterno", layout="wide")
-
-# --- ESTILIZAÇÃO CUSTOMIZADA (CSS para parecer o React) ---
+# --- 2. ESTILO CSS (O segredo do visual profissional) ---
 st.markdown("""
     <style>
-    .main { background-color: #f8fafc; }
-    .stMetric { 
-        background-color: white; 
-        padding: 20px; 
-        border-radius: 20px; 
-        box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1);
-        border: 1px solid #e2e8f0;
+    /* Fundo da página */
+    .stApp { background-color: #f1f5f9; }
+    
+    /* Estilização dos Cards de métricas */
+    div[data-testid="stMetric"] {
+        background-color: #ffffff;
+        border-radius: 20px;
+        padding: 20px;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        border-left: 5px solid #6366f1; /* Linha roxa na lateral */
     }
-    div[data-testid="stSidebar"] { background-color: #0f172a; }
-    h1 { font-weight: 900 !important; color: #1e293b; }
+    
+    /* Títulos e textos */
+    h1, h2, h3 { font-family: 'Inter', sans-serif; font-weight: 800; color: #1e293b; }
+    
+    /* Botões personalizados */
+    .stButton>button {
+        width: 100%;
+        border-radius: 12px;
+        height: 3em;
+        background-color: #6366f1;
+        color: white;
+        font-weight: bold;
+        border: none;
+        transition: 0.3s;
+    }
+    .stButton>button:hover { background-color: #4f46e5; border: none; color: white; transform: translateY(-2px); }
     </style>
 """, unsafe_allow_html=True)
 
-# --- LOGIN (Usando Secrets do Streamlit) ---
+# --- 3. SISTEMA DE LOGIN ---
 if "autenticado" not in st.session_state:
     st.session_state.autenticado = False
 
 if not st.session_state.autenticado:
-    st.title("🔐 CAIXA LOUVOR ETERNO")
-    chave = st.text_input("DIGITE A CHAVE DO GRUPO", type="password")
-    if st.button("ENTRAR NO SISTEMA"):
-        if chave == st.secrets["chave_grupo"]:
-            st.session_state.autenticado = True
-            st.rerun()
-        else:
-            st.error("Chave incorreta")
+    st.markdown("<h1 style='text-align: center; margin-top: 50px;'>🔑 Acesso ao Caixa</h1>", unsafe_allow_html=True)
+    col_l1, col_l2, col_l3 = st.columns([1, 1, 1])
+    with col_l2:
+        with st.container():
+            chave = st.text_input("Chave do Grupo", type="password")
+            if st.button("ACESSAR PAINEL"):
+                if chave == st.secrets["chave_grupo"]:
+                    st.session_state.autenticado = True
+                    st.rerun()
+                else:
+                    st.error("Chave inválida!")
 else:
-    # --- HEADER ---
-    st.title("💸 Caixa Louvor Eterno")
+    # --- 4. CABEÇALHO ---
+    st.markdown("# 💎 Caixa Louvor Eterno")
+    st.markdown(f"📅 Hoje é dia {datetime.now().strftime('%d/%m/%Y')}")
+
+    # --- 5. BANCO DE DADOS TEMPORÁRIO ---
+    if 'movimentacoes' not in st.session_state:
+        st.session_state.movimentacoes = pd.DataFrame(columns=["Data", "Descrição", "Categoria", "Tipo", "Local", "Valor"])
+
+    df = st.session_state.movimentacoes
+
+    # --- 6. BARRA LATERAL ---
+    st.sidebar.image("https://cdn-icons-png.flaticon.com/512/552/552791.png", width=80)
+    st.sidebar.title("Menu de Gestão")
+    menu = st.sidebar.radio("Selecione a página:", ["📊 Dashboard", "📝 Lançamentos", "📜 Histórico"])
     
-    # --- CARDS DE TOTAIS (Estilo o seu código React) ---
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        st.metric("Em Mãos (Espécie)", "R$ 1.200,00")
-    with col2:
-        st.metric("No Pix (Banco)", "R$ 850,00")
-    with col3:
-        st.metric("Saldo Total", "R$ 2.050,00")
+    st.sidebar.divider()
+    if st.sidebar.button("🚪 Sair do Sistema"):
+        st.session_state.autenticado = False
+        st.rerun()
 
-    st.divider()
+    # --- 7. LÓGICA DAS PÁGINAS ---
+    if menu == "📊 Dashboard":
+        # Métricas de Saldo
+        valor_especie = df[df['Local'] == 'Dinheiro']['Valor'].sum() if not df.empty else 0.0
+        valor_pix = df[df['Local'] == 'Pix']['Valor'].sum() if not df.empty else 0.0
+        
+        c1, c2, c3 = st.columns(3)
+        c1.metric("💰 Em Mãos", f"R$ {valor_especie:,.2f}")
+        c2.metric("📱 No Pix", f"R$ {valor_pix:,.2f}")
+        c3.metric("🏦 Saldo Total", f"R$ {valor_especie + valor_pix:,.2f}")
 
-    # --- ÁREA CENTRAL ---
-    col_form, col_graph = st.columns([1, 2])
+        st.divider()
 
-    with col_form:
-        st.subheader("📝 Registrar")
-        with st.container(border=True):
-            tipo = st.radio("Tipo", ["Entrada (+)", "Saída (-)"], horizontal=True)
-            local = st.selectbox("Local", ["Dinheiro (Espécie)", "Pix"])
-            desc = st.text_input("Descrição")
-            valor = st.number_input("Valor R$", min_value=0.0)
-            if st.button("Registrar Agora", use_container_width=True):
-                st.success("Registrado com sucesso!")
+        # Gráfico Donut Chart (Estilo Profissional)
+        col_graf, col_resumo = st.columns([2, 1])
+        with col_graf:
+            if not df.empty:
+                entradas = df[df['Tipo'] == 'Entrada']['Valor'].abs().sum()
+                saidas = df[df['Tipo'] == 'Saída']['Valor'].abs().sum()
+                
+                fig = go.Figure(data=[go.Pie(
+                    labels=['Entradas', 'Saídas'],
+                    values=[entradas, saidas],
+                    hole=.6,
+                    marker_colors=['#10b981', '#f43f5e']
+                )])
+                fig.update_layout(title="Distribuição de Fluxo", margin=dict(t=50, b=0, l=0, r=0))
+                st.plotly_chart(fig, use_container_width=True)
+            else:
+                st.info("Lance valores para ver o gráfico.")
 
-    with col_graph:
-        st.subheader("📊 Distribuição")
-        # Criando um gráfico de pizza igual ao do React usando Plotly
-        fig = go.Figure(data=[go.Pie(labels=['Entradas', 'Saídas'], 
-                             values=[1200, 450], 
-                             hole=.6,
-                             marker_colors=[COLOR_ENTRADA[0], COLOR_SAIDA[0]])])
-        fig.update_layout(margin=dict(t=0, b=0, l=0, r=0), height=300)
-        st.plotly_chart(fig, use_container_width=True)
+    elif menu == "📝 Lançamentos":
+        st.subheader("Registrar Nova Movimentação")
+        with st.form("meu_formulario"):
+            col_f1, col_f2 = st.columns(2)
+            with col_f1:
+                tipo = st.selectbox("Tipo", ["Entrada", "Saída"])
+                local = st.selectbox("Local", ["Dinheiro", "Pix"])
+                valor = st.number_input("Valor R$", min_value=0.0, step=1.0)
+            with col_f2:
+                desc = st.text_input("Descrição (Ex: Oferta Culto)")
+                cat = st.selectbox("Categoria", ["Oferta", "Lanches", "Evento", "Materiais", "Outros"])
+                data = st.date_input("Data", datetime.now())
+            
+            if st.form_submit_button("Confirmar Lançamento"):
+                valor_final = valor if tipo == "Entrada" else -valor
+                nova_linha = pd.DataFrame([[data.strftime("%d/%m/%Y"), desc, cat, tipo, local, valor_final]], columns=df.columns)
+                st.session_state.movimentacoes = pd.concat([df, nova_linha], ignore_index=True)
+                st.success("Lançado com sucesso!")
 
-    # --- TABELA DE HISTÓRICO ---
-    st.subheader("📜 Histórico de Lançamentos")
-    dados_exemplo = pd.DataFrame({
-        "Data": ["10 Abr", "08 Abr"],
-        "Descrição": ["Oferta Culto", "Lanche Ensaio"],
-        "Categoria": ["Oferta", "Lanches"],
-        "Valor": ["+ R$ 500,00", "- R$ 120,00"]
-    })
-    st.table(dados_exemplo)
+    elif menu == "📜 Histórico":
+        st.subheader("Histórico de Transações")
+        if not df.empty:
+            st.dataframe(df.iloc[::-1], use_container_width=True)
+            
+            # Botão de Exportar Excel
+            output = io.BytesIO()
+            with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                df.to_excel(writer, index=False)
+            st.download_button("📥 Baixar Planilha Excel", data=output.getvalue(), file_name="caixa.xlsx")
+        else:
+            st.info("Nenhum registro encontrado.")
