@@ -7,23 +7,31 @@ import io
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="Caixa Louvor Eterno", page_icon="💰", layout="wide")
 
-# --- 2. ESTILO CSS (O segredo do visual profissional) ---
+# --- 2. ESTILO CSS (Modo Escuro / Dark Mode) ---
 st.markdown("""
     <style>
     /* Fundo da página */
-    .stApp { background-color: #f1f5f9; }
+    .stApp, .main { background-color: #0f172a; color: #f8fafc; }
     
     /* Estilização dos Cards de métricas */
     div[data-testid="stMetric"] {
-        background-color: #ffffff;
+        background-color: #1e293b !important;
         border-radius: 20px;
         padding: 20px;
-        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1);
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5);
         border-left: 5px solid #6366f1; /* Linha roxa na lateral */
+        border-top: none; border-right: none; border-bottom: none;
     }
     
-    /* Títulos e textos */
-    h1, h2, h3 { font-family: 'Inter', sans-serif; font-weight: 800; color: #1e293b; }
+    /* Títulos e textos globais forçados para branco/cinza claro */
+    h1, h2, h3, h4, h5, h6, p, span, label, div { 
+        font-family: 'Inter', sans-serif; 
+        color: #f8fafc; 
+    }
+    
+    /* Forçar cor específica dos valores nas métricas */
+    [data-testid="stMetricValue"] > div { color: #ffffff !important; font-weight: 900; }
+    [data-testid="stMetricLabel"] > div { color: #94a3b8 !important; }
     
     /* Botões personalizados */
     .stButton>button {
@@ -31,12 +39,22 @@ st.markdown("""
         border-radius: 12px;
         height: 3em;
         background-color: #6366f1;
-        color: white;
+        color: white !important;
         font-weight: bold;
         border: none;
         transition: 0.3s;
     }
-    .stButton>button:hover { background-color: #4f46e5; border: none; color: white; transform: translateY(-2px); }
+    .stButton>button:hover { 
+        background-color: #4f46e5; 
+        transform: translateY(-2px); 
+    }
+
+    /* Campos de input, formulários e selects */
+    .stTextInput>div>div>input, .stSelectbox>div>div>div, .stDateInput>div>div>input, .stNumberInput>div>div>input {
+        background-color: #1e293b !important;
+        color: #f8fafc !important;
+        border: 1px solid #334155 !important;
+    }
     </style>
 """, unsafe_allow_html=True)
 
