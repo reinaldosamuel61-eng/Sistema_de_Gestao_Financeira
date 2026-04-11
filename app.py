@@ -325,6 +325,12 @@ else:
             df_f['orig_idx'] = df_f.index
             df_f = df_f.sort_values(by=['Data_dt', 'id'], ascending=[False, False])
 
+        # --- Variáveis para Resumo (Restauradas) ---
+        df_ent_f = df_f[df_f['Tipo'] == 'Entrada']
+        df_sai_f = df_f[df_f['Tipo'] == 'Saída']
+        tg = df_ent_f['Valor'].sum() if not df_ent_f.empty else 0.0
+        ts = abs(df_sai_f['Valor'].sum()) if not df_sai_f.empty else 0.0
+
         st.divider()
         col_tit, col_cnt = st.columns([6, 4])
         col_tit.markdown("#### Lançamentos")
@@ -419,6 +425,35 @@ else:
                 return pdf.output(dest="S").encode('latin-1')
             
             st.download_button("📄 Gerar Relatório em PDF", data=gerar_relatorio_pdf(df_f, datas_sel), file_name=f"Relatorio_{datetime.now().strftime('%d%m%Y')}.pdf", type="primary")
+
+        # --- ÁREA DE DESEMPENHO (GRÁFICOS RESTAURADOS) ---
+        st.divider()
+        st.markdown("<div style='text-align: center;'><i class='bi bi-bar-chart-fill' style='font-size: 2rem; color: #10b981;'></i><h2 style='font-weight: 900;'>Desempenho Financeiro</h2></div>", unsafe_allow_html=True)
+        
+        cda1, cda2, cda3 = st.columns(3)
+        def card_d(t, v, c): st.markdown(f"<div style='background-color: rgba({c}, 0.05); border: 1px solid rgba({c}, 0.3); border-radius: 20px; padding: 20px; text-align: center;'><div style='color: rgb({c}); font-size: 0.8rem; font-weight: 800;'>{t}</div><div style='color: rgb({c}); font-size: 1.8rem; font-weight: 900;'>R$ {v:,.2f}</div></div>", unsafe_allow_html=True)
+        with cda1: card_d("GANHOS (+)", tg, "16, 185, 129")
+        with cda2: card_d("GASTOS (-)", ts, "244, 63, 94")
+        with cda3: card_d("SALDO PERÍODO", tg-ts, "99, 102, 241")
+
+        st.markdown("<div style='margin-top: 35px;'></div>", unsafe_allow_html=True)
+
+        if not df_ent_f.empty or not df_sai_f.empty:
+            cg1, cg2 = st.columns(2)
+            with cg1:
+                if not df_ent_f.empty:
+                    st.markdown("<h5 style='text-align: center; color: #94a3b8; font-size: 0.8rem;'>ORIGEM DAS ENTRADAS</h5>", unsafe_allow_html=True)
+                    dg = df_ent_f.groupby('Categoria')['Valor'].sum().reset_index()
+                    fig = go.Figure(data=[go.Pie(labels=dg['Categoria'], values=dg['Valor'], hole=.65, marker_colors=COLORS_ENTRADA, textinfo='none')])
+                    fig.update_layout(showlegend=True, paper_bgcolor='rgba(0,0,0,0)', margin=dict(t=10, b=10, l=10, r=10), height=250, legend=dict(font=dict(color="#f8fafc")))
+                    st.plotly_chart(fig, use_container_width=True)
+            with cg2:
+                if not df_sai_f.empty:
+                    st.markdown("<h5 style='text-align: center; color: #94a3b8; font-size: 0.8rem;'>DESTINO DOS GASTOS</h5>", unsafe_allow_html=True)
+                    dg = df_sai_f.groupby('Categoria')['Valor'].sum().reset_index()
+                    fig = go.Figure(data=[go.Pie(labels=dg['Categoria'], values=abs(dg['Valor']), hole=.65, marker_colors=COLORS_SAIDA, textinfo='none')])
+                    fig.update_layout(showlegend=True, paper_bgcolor='rgba(0,0,0,0)', margin=dict(t=10, b=10, l=10, r=10), height=250, legend=dict(font=dict(color="#f8fafc")))
+                    st.plotly_chart(fig, use_container_width=True)
 
     # -- AJUSTES --
     elif menu == "Ajustes":
