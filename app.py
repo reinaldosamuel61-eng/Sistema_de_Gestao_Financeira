@@ -472,6 +472,4 @@ else:
         st.markdown("<h3><i class='bi bi-box-arrow-right' style='color: #f43f5e; margin-right: 10px;'></i>Encerrar Sessão</h3>", unsafe_allow_html=True)
         st.warning("Deseja sair?")
         if st.button("Sim, sair agora", type="primary"): st.session_state.autenticado = False; st.rerun()
-        if st.button("Cancelar"): 
-            st.session_state.menu_principal = "Resumo"
-            st.rerun()
+        st.button("Cancelar", on_click=cancelar_saida)
