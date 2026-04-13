@@ -12,12 +12,17 @@ from firebase_admin import credentials, firestore
 st.set_page_config(page_title="Caixa Louvor Eterno", page_icon="💰", layout="wide")
 
 # --- 2. ESTILO CSS GERAL E CONFIGURAÇÕES ---
+# NOTA: O CSS foi "achatado" para evitar o erro de vazamento de texto na tela.
 st.markdown("""
     <meta name="google" content="notranslate">
     <style>
     @import url("https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css");
     .stApp, .main { background-color: #0f172a; color: #f8fafc; }
     [data-testid="collapsedControl"] { display: none; }
+    .historico-card { background-color: #1e293b; border-radius: 15px; padding: 18px; margin-bottom: 12px; border-left: 6px solid transparent; display: flex; justify-content: space-between; align-items: center; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3); }
+    .card-entrada { border-left-color: #10b981; }
+    .card-saida { border-left-color: #f43f5e; }
+    .card-transferencia { border-left-color: #facc15; }
     h1, h2, h3, h4, p, span, label { color: #f8fafc !important; font-family: 'Inter', sans-serif; }
     div[data-testid="stMetric"] { background-color: #1e293b !important; border-radius: 20px; padding: 20px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.5); border-left: 6px solid #6366f1; }
     [data-testid="stMetricValue"] > div { color: #ffffff !important; font-weight: 900; }
@@ -28,8 +33,6 @@ st.markdown("""
     button[kind="secondary"]:hover { background-color: #334155 !important; border-color: #f43f5e !important; }
     .stTextInput>div>div>input, .stSelectbox>div>div>div, .stDateInput>div>div>input, .stNumberInput>div>div>input { background-color: #1e293b !important; color: #f8fafc !important; border: 1px solid #334155 !important; border-radius: 10px; }
     .stDataFrame { background-color: #1e293b; }
-    
-    /* CSS DO BOTÃO UPLOAD/IMPORTAR */
     [data-testid="stFileUploader"] { padding: 0 !important; margin-bottom: 0 !important; }
     [data-testid="stFileUploadDropzone"] { border: none !important; background-color: transparent !important; padding: 0 !important; min-height: 0 !important; }
     [data-testid="stFileUploadDropzone"] > div > svg, [data-testid="stFileUploadDropzone"] > div > small, [data-testid="stFileUploadDropzone"] > div > span { display: none !important; }
@@ -163,11 +166,35 @@ def resetar_estado_exportacao():
 
 # --- 5. SISTEMA DE LOGIN ---
 if not st.session_state.autenticado:
-    st.markdown("<h1 style='text-align: center; margin-top: 50px; font-weight: 900;'>CAIXA LOUVOR ETERNO</h1>", unsafe_allow_html=True)
+    # CSS Adicional EXCLUSIVO para a tela de Login ficar com aspecto Premium
+    st.markdown("""
+        <style>
+        .main .block-container {
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            min-height: 85vh;
+        }
+        /* Design igual ao historico-card: Fundo escuro, borda na esquerda, arredondamento leve */
+        div[data-testid="stVerticalBlockBorderWrapper"] {
+            background-color: #1e293b !important;
+            border-radius: 15px !important;
+            padding: 25px !important;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3) !important;
+            border: none !important;
+            border-left: 6px solid #6366f1 !important;
+        }
+        </style>
+    """, unsafe_allow_html=True)
+
+    st.markdown("<h2 style='text-align: center; font-weight: 900; margin-bottom: 40px; color: #f8fafc; letter-spacing: 1px;'>SISTEMA DE GESTÃO FINANCEIRA</h2>", unsafe_allow_html=True)
+    
     col_l1, col_l2, col_l3 = st.columns([1, 1.2, 1])
     with col_l2:
         with st.container(border=True):
+            st.markdown("<h4 style='text-align: center; color: #f8fafc; margin-bottom: 25px;'><i class='bi bi-lock-fill' style='color: #6366f1; margin-right: 10px;'></i>Acesso Restrito</h4>", unsafe_allow_html=True)
             chave = st.text_input("Senha", type="password", placeholder="Digite a senha de acesso...", label_visibility="collapsed", autocomplete="new-password")
+            st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
             if st.button("ACESSAR SISTEMA"):
                 senha_esperada = "admin"
                 try: senha_esperada = st.secrets.get("chave_grupo", "admin")
@@ -175,7 +202,7 @@ if not st.session_state.autenticado:
                 if chave == senha_esperada:
                     st.session_state.autenticado = True; st.rerun()
                 else:
-                    st.error("Chave incorreta!")
+                    st.error("❌ Chave incorreta! Tente novamente.")
 else:
     if db is None:
         st.error("🔥 Conexão com o Banco de Dados falhou. Verifique o secrets.")
@@ -337,23 +364,38 @@ else:
         col_cnt.markdown(f"<div style='text-align: right; color: #94a3b8;'>Total: {len(df)} | Mostrando: {len(df_f)}</div>", unsafe_allow_html=True)
 
         for _, row in df_f.iterrows():
+            if row['Tipo'] == 'Entrada': cl, cor, pre = "card-entrada", "#10b981", "+"
+            elif row['Tipo'] == 'Saída': cl, cor, pre = "card-saida", "#f43f5e", "-"
+            else: cl, cor, pre = "card-transferencia", "#facc15", ""
+            
+            # --- TRADUÇÃO DO NÚMERO DO MÊS PARA TEXTO ---
+            meses_map = {"01": "Jan", "02": "Fev", "03": "Mar", "04": "Abril", "05": "Maio", "06": "Jun", 
+                         "07": "Jul", "08": "Ago", "09": "Set", "10": "Out", "11": "Nov", "12": "Dez"}
+            mes_num = row['Data'][3:5]
+            mes_nome = meses_map.get(mes_num, mes_num)
+
             with st.container():
-                c_data, c_info, c_valor, c_del = st.columns([1, 4, 3, 1])
-                desc_limpa = str(row['Descrição']).strip().upper()
-                dia = row['Data'][:2]
-                mes = row['Data'][3:5]
+                st.markdown(f"""<div class="historico-card {cl}">
+                    <div style="display: flex; align-items: center; gap: 15px;">
+                        <div style="text-align: center; min-width: 50px; border-right: 1px solid rgba(255,255,255,0.1); padding-right: 10px;">
+                            <b style="font-size: 1.2rem; display: block;">{row['Data'][:2]}</b>
+                            <small style="color: #94a3b8; text-transform: uppercase;">{mes_nome}</small>
+                        </div>
+                        <div>
+                            <b style="font-size: 1.05rem; text-transform: uppercase;">{str(row['Descrição']).strip()}</b><br>
+                            <small style="color: #94a3b8;"><i class="bi bi-tag"></i> {row['Categoria']} | <i class="bi bi-geo-alt"></i> {row['Local']}</small>
+                        </div>
+                    </div>
+                    <div style="text-align: right;"><b style="color: {cor}; font-size: 1.3rem;">{pre} R$ {abs(row['Valor']):,.2f}</b></div>
+                </div>""", unsafe_allow_html=True)
                 
-                c_data.markdown(f"<b>{dia}</b><br>{mes}", unsafe_allow_html=True)
-                c_info.markdown(f"<b>{desc_limpa}</b><br><small>{row['Local']} | {row['Categoria']}</small>", unsafe_allow_html=True)
-                
-                cor = "#10b981" if row['Tipo'] == 'Entrada' else "#f43f5e" if row['Tipo'] == 'Saída' else "#94a3b8"
-                c_valor.markdown(f"<h4 style='text-align: right; color: {cor};'>R$ {abs(row['Valor']):,.2f}</h4>", unsafe_allow_html=True)
+                c_del = st.columns([11, 1])
                 if st.session_state.id_excluir == row['id']:
-                    cx1, cx2 = c_del.columns(2)
+                    cx1, cx2 = c_del[1].columns(2)
                     cx1.button("✓", key=f"s_{row['id']}", on_click=confirmar_exclusao, args=(row['id'],), type="primary")
                     cx2.button("✗", key=f"n_{row['id']}", on_click=cancelar_exclusao)
-                else: c_del.button("🗑️", key=f"d_{row['id']}", on_click=pedir_exclusao, args=(row['id'],))
-            st.markdown("<hr style='margin: 5px 0; opacity: 0.1;'>", unsafe_allow_html=True)
+                else: 
+                    c_del[1].button("🗑️", key=f"d_{row['id']}", on_click=pedir_exclusao, args=(row['id'],))
 
         # --- FUNÇÃO GERADORA DE PDF (RESTAURO DO PADRÃO PREMIUM) ---
         if not df_f.empty:
@@ -467,13 +509,30 @@ else:
             new_e = st.text_input("Nova Entrada", key="ne")
             if st.button("Adicionar") and new_e.strip():
                 st.session_state.categorias["entrada"].append(new_e.strip()); salvar_categorias_db(st.session_state.categorias); st.rerun()
-            for c in st.session_state.categorias["entrada"]: st.write(f"• {c}")
+            
+            # --- ALTERAÇÃO AQUI: EXCLUSÃO DE CATEGORIAS (ENTRADA) ---
+            for c in st.session_state.categorias["entrada"]: 
+                col1, col2 = st.columns([8, 2])
+                col1.write(f"• {c}")
+                if col2.button("🗑️", key=f"del_ent_{c}"):
+                    st.session_state.categorias["entrada"].remove(c)
+                    salvar_categorias_db(st.session_state.categorias)
+                    st.rerun()
+
         with c_sai:
             st.write("**Categorias de Saída**")
             new_s = st.text_input("Nova Saída", key="ns")
             if st.button("Adicionar", key="be") and new_s.strip():
                 st.session_state.categorias["saida"].append(new_s.strip()); salvar_categorias_db(st.session_state.categorias); st.rerun()
-            for c in st.session_state.categorias["saida"]: st.write(f"• {c}")
+            
+            # --- ALTERAÇÃO AQUI: EXCLUSÃO DE CATEGORIAS (SAÍDA) ---
+            for c in st.session_state.categorias["saida"]: 
+                col1, col2 = st.columns([8, 2])
+                col1.write(f"• {c}")
+                if col2.button("🗑️", key=f"del_sai_{c}"):
+                    st.session_state.categorias["saida"].remove(c)
+                    salvar_categorias_db(st.session_state.categorias)
+                    st.rerun()
 
         st.divider()
         st.markdown("#### Backup e Sincronização")
