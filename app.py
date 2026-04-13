@@ -12,7 +12,6 @@ from firebase_admin import credentials, firestore
 st.set_page_config(page_title="Caixa Louvor Eterno", page_icon="💰", layout="wide")
 
 # --- 2. ESTILO CSS GERAL E CONFIGURAÇÕES ---
-# NOTA: O CSS foi "achatado" para evitar o erro de vazamento de texto na tela.
 st.markdown("""
     <meta name="google" content="notranslate">
     <style>
@@ -33,6 +32,8 @@ st.markdown("""
     button[kind="secondary"]:hover { background-color: #334155 !important; border-color: #f43f5e !important; }
     .stTextInput>div>div>input, .stSelectbox>div>div>div, .stDateInput>div>div>input, .stNumberInput>div>div>input { background-color: #1e293b !important; color: #f8fafc !important; border: 1px solid #334155 !important; border-radius: 10px; }
     .stDataFrame { background-color: #1e293b; }
+    /* Estilo customizado para o popover de notas no histórico */
+    div[data-testid="stPopover"] > button { background-color: transparent !important; border: 1px solid #475569 !important; color: #94a3b8 !important; padding: 0px 10px !important; height: 2.2em !important; }
     [data-testid="stFileUploader"] { padding: 0 !important; margin-bottom: 0 !important; }
     [data-testid="stFileUploadDropzone"] { border: none !important; background-color: transparent !important; padding: 0 !important; min-height: 0 !important; }
     [data-testid="stFileUploadDropzone"] > div > svg, [data-testid="stFileUploadDropzone"] > div > small, [data-testid="stFileUploadDropzone"] > div > span { display: none !important; }
@@ -69,7 +70,7 @@ db = init_firebase()
 
 # --- FUNÇÕES DE BANCO DE DADOS ---
 def carregar_dados():
-    if db is None: return pd.DataFrame(columns=["Data", "Descrição", "Categoria", "Tipo", "Local", "Valor", "id"])
+    if db is None: return pd.DataFrame(columns=["Data", "Descrição", "Categoria", "Tipo", "Local", "Valor", "id", "Nota"])
     docs = db.collection('movimentacoes').stream()
     data = []
     for doc in docs:
@@ -78,12 +79,12 @@ def carregar_dados():
         data.append(d)
     df = pd.DataFrame(data)
     if not df.empty:
-        colunas_ordem = ["Data", "Descrição", "Categoria", "Tipo", "Local", "Valor", "id"]
+        colunas_ordem = ["Data", "Descrição", "Categoria", "Tipo", "Local", "Valor", "id", "Nota"]
         for col in colunas_ordem:
             if col not in df.columns: df[col] = None
         df = df[colunas_ordem]
     else:
-        df = pd.DataFrame(columns=["Data", "Descrição", "Categoria", "Tipo", "Local", "Valor", "id"])
+        df = pd.DataFrame(columns=["Data", "Descrição", "Categoria", "Tipo", "Local", "Valor", "id", "Nota"])
     return df
 
 def salvar_lancamento(dados):
@@ -93,7 +94,6 @@ def excluir_lancamento_db(doc_id):
     if db: db.collection('movimentacoes').document(doc_id).delete()
 
 def salvar_em_lote(df_import, df_existente):
-    """Salva múltiplos registros ignorando duplicados (mesma data, descrição, valor e local)"""
     if db:
         existentes = set()
         if not df_existente.empty:
@@ -117,7 +117,7 @@ def salvar_em_lote(df_import, df_existente):
 
 def carregar_categorias():
     if db is None: 
-        return {"entrada": ["Mensalidade", "Oferta"], "saida": ["Lanches", "Materiais"]}
+        return {"entrada": ["Oferta"], "saida": ["Lanches"]}
     doc_ref = db.collection('configuracoes').document('categorias')
     doc = doc_ref.get()
     if doc.exists:
@@ -131,7 +131,7 @@ def salvar_categorias_db(categorias):
     if db: db.collection('configuracoes').document('categorias').set(categorias)
 
 
-# --- 4. INICIALIZAÇÃO DE ESTADOS ---
+# --- 4. INICIALIZAÇÃO DE ESTADOS E CALLBACKS ---
 if 'autenticado' not in st.session_state: st.session_state.autenticado = False
 if 'confirmar_lancamento' not in st.session_state: st.session_state.confirmar_lancamento = False
 if 'dados_temp' not in st.session_state: st.session_state.dados_temp = {}
@@ -142,47 +142,29 @@ if 'msg_sucesso' not in st.session_state: st.session_state.msg_sucesso = ""
 if 'msg_import' not in st.session_state: st.session_state.msg_import = ""
 if 'confirmar_importacao' not in st.session_state: st.session_state.confirmar_importacao = False
 if 'up_key' not in st.session_state: st.session_state.up_key = 0
-if 'cat_pendente_add' not in st.session_state: st.session_state.cat_pendente_add = None
-if 'cat_pendente_del' not in st.session_state: st.session_state.cat_pendente_del = None
 
 if 'categorias' not in st.session_state and db is not None:
     st.session_state.categorias = carregar_categorias()
 
-# Callbacks
-def pedir_exclusao(doc_id): st.session_state.id_excluir = doc_id
-def cancelar_exclusao(): st.session_state.id_excluir = None
 def confirmar_exclusao(doc_id):
     excluir_lancamento_db(doc_id)
     st.session_state.id_excluir = None
     st.session_state.msg_sucesso = "🗑️ Lançamento excluído com sucesso!"
 
+def cancelar_exclusao(): st.session_state.id_excluir = None
+
+# Função callback para voltar ao Resumo sem dar erro no Menu
 def cancelar_saida():
     st.session_state.menu_principal = "Resumo"
 
-def resetar_estado_exportacao():
-    st.session_state.confirmar_exportacao = False
-    st.session_state.msg_sucesso = "✅ Arquivo exportado com sucesso!"
-
-
 # --- 5. SISTEMA DE LOGIN ---
 if not st.session_state.autenticado:
-    # CSS Adicional EXCLUSIVO para a tela de Login ficar com aspecto Premium
     st.markdown("""
         <style>
-        .main .block-container {
-            display: flex;
-            flex-direction: column;
-            justify-content: center;
-            min-height: 85vh;
-        }
-        /* Design igual ao historico-card: Fundo escuro, borda na esquerda, arredondamento leve */
+        .main .block-container { display: flex; flex-direction: column; justify-content: center; min-height: 85vh; }
         div[data-testid="stVerticalBlockBorderWrapper"] {
-            background-color: #1e293b !important;
-            border-radius: 15px !important;
-            padding: 25px !important;
-            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3) !important;
-            border: none !important;
-            border-left: 6px solid #6366f1 !important;
+            background-color: #1e293b !important; border-radius: 15px !important; padding: 25px !important;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3) !important; border: none !important; border-left: 6px solid #6366f1 !important;
         }
         </style>
     """, unsafe_allow_html=True)
@@ -194,19 +176,13 @@ if not st.session_state.autenticado:
         with st.container(border=True):
             st.markdown("<h4 style='text-align: center; color: #f8fafc; margin-bottom: 25px;'><i class='bi bi-lock-fill' style='color: #6366f1; margin-right: 10px;'></i>Acesso Restrito</h4>", unsafe_allow_html=True)
             chave = st.text_input("Senha", type="password", placeholder="Digite a senha de acesso...", label_visibility="collapsed", autocomplete="new-password")
-            st.markdown("<div style='margin-top: 15px;'></div>", unsafe_allow_html=True)
             if st.button("ACESSAR SISTEMA"):
-                senha_esperada = "admin"
-                try: senha_esperada = st.secrets.get("chave_grupo", "admin")
-                except: pass 
+                senha_esperada = st.secrets.get("chave_grupo", "admin")
                 if chave == senha_esperada:
                     st.session_state.autenticado = True; st.rerun()
-                else:
-                    st.error("❌ Chave incorreta! Tente novamente.")
+                else: st.error("❌ Chave incorreta!")
 else:
-    if db is None:
-        st.error("🔥 Conexão com o Banco de Dados falhou. Verifique o secrets.")
-        st.stop()
+    if db is None: st.error("🔥 Erro de conexão."); st.stop()
 
     st.markdown("<h2 style='text-align: center; color: #6366f1; font-weight: 900; margin-top: 0;'>CAIXA LOUVOR ETERNO</h2>", unsafe_allow_html=True)
     
@@ -214,43 +190,24 @@ else:
         menu_title=None,
         options=["Resumo", "Lançar", "Transferir", "Histórico", "Ajustes", "Sair"],
         icons=['house', 'plus-circle', 'arrow-left-right', 'clock-history', 'gear', 'box-arrow-right'],
-        default_index=0,
-        orientation="horizontal",
-        key="menu_principal",
-        styles={
-            "container": {"padding": "0!important", "background-color": "#1e293b", "border-radius": "15px", "margin-bottom": "20px"},
-            "icon": {"color": "#f8fafc", "font-size": "18px"}, 
-            "nav-link": {"font-size": "14px", "text-align": "center", "margin": "0px", "color": "#94a3b8", "font-weight": "bold"},
-            "nav-link-selected": {"background-color": "#6366f1", "color": "#ffffff"},
-        }
+        default_index=0, orientation="horizontal", key="menu_principal",
+        styles={"container": {"padding": "0!important", "background-color": "#1e293b", "border-radius": "15px", "margin-bottom": "20px"},
+                "nav-link": {"font-size": "14px", "text-align": "center", "color": "#94a3b8", "font-weight": "bold"},
+                "nav-link-selected": {"background-color": "#6366f1", "color": "#ffffff"}}
     )
     
-    if 'menu_atual' not in st.session_state: st.session_state.menu_atual = menu
-    if st.session_state.menu_atual != menu:
-        st.session_state.confirmar_importacao = False
-        st.session_state.cat_pendente_add = None
-        st.session_state.cat_pendente_del = None
-        st.session_state.id_excluir = None
-        st.session_state.menu_atual = menu
-
     df = carregar_dados()
     
     especie = 0.0
     pix = 0.0
     if not df.empty:
-        mask_especie = df['Local'].isin(['Espécie', 'Dinheiro'])
-        mask_pix = df['Local'] == 'Pix'
-        especie += df[mask_especie & df['Tipo'].isin(['Entrada', 'Saída'])]['Valor'].sum()
-        pix += df[mask_pix & df['Tipo'].isin(['Entrada', 'Saída'])]['Valor'].sum()
-        transf_to_pix = df[(df['Tipo'] == 'Transferência') & df['Local'].isin(['Espécie -> Pix', 'Dinheiro -> Pix'])]['Valor'].sum()
-        transf_to_especie = df[(df['Tipo'] == 'Transferência') & df['Local'].isin(['Pix -> Espécie', 'Pix -> Dinheiro'])]['Valor'].sum()
-        especie = especie - transf_to_pix + transf_to_especie
-        pix = pix - transf_to_especie + transf_to_pix
+        especie += df[(df['Local'].isin(['Espécie', 'Dinheiro'])) & (df['Tipo'].isin(['Entrada', 'Saída']))]['Valor'].sum()
+        pix += df[(df['Local'] == 'Pix') & (df['Tipo'].isin(['Entrada', 'Saída']))]['Valor'].sum()
+        transf_to_pix = df[(df['Tipo'] == 'Transferência') & df['Local'].str.contains('-> Pix', na=False)]['Valor'].sum()
+        transf_to_esp = df[(df['Tipo'] == 'Transferência') & df['Local'].str.contains('-> Espécie', na=False)]['Valor'].sum()
+        especie = especie - transf_to_pix + transf_to_esp
+        pix = pix - transf_to_esp + transf_to_pix
 
-    if menu not in ["Lançar", "Transferir", "Histórico", "Ajustes"]:
-        st.session_state.msg_sucesso = ""; st.session_state.msg_import = ""
-
-    # -- DASHBOARD / RESUMO --
     if menu == "Resumo":
         def cartao_customizado(icone, titulo, valor):
             st.markdown(f"""
@@ -269,94 +226,60 @@ else:
         st.divider()
         st.markdown("<div style='text-align: center; color: #94a3b8; font-style: italic; margin-top: 10px;'><i class='bi bi-info-circle'></i> Use a aba <b>Histórico</b> para filtrar dados e gerar relatórios em PDF.</div>", unsafe_allow_html=True)
 
-    # -- LANÇAMENTOS --
     elif menu == "Lançar":
-        st.markdown("<h3><i class='bi bi-pencil-square' style='color: #6366f1; margin-right: 10px;'></i>Novo Lançamento</h3>", unsafe_allow_html=True)
-        if st.session_state.msg_sucesso != "":
-            st.success(st.session_state.msg_sucesso); st.session_state.msg_sucesso = ""
-            
+        st.markdown("<h3><i class='bi bi-pencil-square' style='color: #6366f1;'></i> Novo Lançamento</h3>", unsafe_allow_html=True)
+        if st.session_state.msg_sucesso: st.success(st.session_state.msg_sucesso); st.session_state.msg_sucesso = ""
+        
         if st.session_state.confirmar_lancamento:
-            dados = st.session_state.dados_temp
-            st.warning("⚠️ **Confirme os dados antes de salvar na nuvem.**")
-            st.info(f"**Operação:** {dados['Tipo']} | **Valor:** R$ {abs(dados['Valor']):,.2f} | **Local:** {dados['Local']}")
+            d = st.session_state.dados_temp
+            st.warning("⚠️ Confirme os dados abaixo:")
+            st.info(f"**{d['Tipo']}** | **Valor:** R$ {abs(d['Valor']):,.2f} | **Local:** {d['Local']}")
+            if d.get('Nota'): st.info(f"**Nota:** {d['Nota']}")
             c1, c2 = st.columns(2)
-            if c1.button("✅ Confirmar Lançamento", type="primary"):
-                salvar_lancamento(dados)
-                st.session_state.confirmar_lancamento = False; st.session_state.dados_temp = {}
-                st.session_state.msg_sucesso = "✅ Lançamento registrado com sucesso!"; st.rerun()
-            if c2.button("❌ Cancelar Operação", type="secondary"):
-                st.session_state.confirmar_lancamento = False; st.rerun()
+            if c1.button("✅ Confirmar"):
+                salvar_lancamento(d); st.session_state.confirmar_lancamento = False; st.session_state.msg_sucesso = "✅ Sucesso!"; st.rerun()
+            if c2.button("❌ Cancelar"): st.session_state.confirmar_lancamento = False; st.rerun()
         else:
-            with st.form("form_registro"):
-                col_a, col_b = st.columns(2)
-                with col_a:
-                    tipo = st.radio("Tipo", ["Entrada", "Saída"], horizontal=True)
-                    local = st.selectbox("Local", ["Espécie", "Pix"])
-                    valor = st.number_input("Valor R$", min_value=0.0, step=1.0, format="%.2f")
-                with col_b:
-                    desc = st.text_input("Descrição")
-                    cat = st.selectbox("Categoria", st.session_state.categorias["entrada"] if tipo == "Entrada" else st.session_state.categorias["saida"])
-                    data = st.date_input("Data", datetime.now(), format="DD/MM/YYYY")
+            with st.form("f_lan"):
+                col1, col2 = st.columns(2)
+                tipo = col1.radio("Tipo", ["Entrada", "Saída"], horizontal=True)
+                local = col1.selectbox("Local", ["Espécie", "Pix"])
+                valor = col1.number_input("Valor R$", min_value=0.0, format="%.2f")
+                desc = col2.text_input("Descrição")
+                cat = col2.selectbox("Categoria", st.session_state.categorias["entrada"] if tipo == "Entrada" else st.session_state.categorias["saida"])
+                data = col2.date_input("Data", datetime.now(), format="DD/MM/YYYY")
+                nota = st.text_input("Nota / Observação (Opcional)")
                 if st.form_submit_button("AVANÇAR"):
-                    if not desc.strip() or valor <= 0: st.warning("⚠️ Preencha todos os campos.")
-                    else:
-                        st.session_state.dados_temp = {"Data": data.strftime("%d/%m/%Y"), "Descrição": desc.strip(), "Categoria": cat, "Tipo": tipo, "Local": local, "Valor": valor if tipo == "Entrada" else -valor}
+                    if desc.strip() and valor > 0:
+                        st.session_state.dados_temp = {"Data": data.strftime("%d/%m/%Y"), "Descrição": desc.strip().upper(), "Categoria": cat, "Tipo": tipo, "Local": local, "Valor": valor if tipo == "Entrada" else -valor, "Nota": nota.strip()}
                         st.session_state.confirmar_lancamento = True; st.rerun()
 
-    # -- TRANSFERÊNCIAS --
     elif menu == "Transferir":
-        st.markdown("<h3><i class='bi bi-arrow-left-right' style='color: #6366f1; margin-right: 10px;'></i>Transferência entre Caixas</h3>", unsafe_allow_html=True)
-        if st.session_state.msg_sucesso != "":
-            st.success(st.session_state.msg_sucesso); st.session_state.msg_sucesso = ""
-        if st.session_state.confirmar_transf:
-            dados = st.session_state.dados_transf_temp
-            st.warning("⚠️ **Confirme a transferência abaixo.**")
-            st.info(f"**De:** {dados['origem']} ➡ **Para:** {dados['destino']} | **Valor:** R$ {dados['valor_tr']:,.2f}")
-            c1, c2 = st.columns(2)
-            if c1.button("✅ Confirmar Transferência", type="primary"):
-                nova_linha = {"Data": dados['hoje'], "Descrição": f"Transferência: {dados['origem']} para {dados['destino']}", "Categoria": "Transferência", "Tipo": "Transferência", "Local": f"{dados['origem']} -> {dados['destino']}", "Valor": dados['valor_tr']}
-                salvar_lancamento(nova_linha)
-                st.session_state.confirmar_transf = False; st.session_state.msg_sucesso = "✅ Transferência concluída!"; st.rerun()
-            if c2.button("❌ Cancelar", type="secondary"): st.session_state.confirmar_transf = False; st.rerun()
-        else:
-            with st.form("form_transf"):
-                origem = st.selectbox("Retirar de:", ["Espécie", "Pix"])
-                valor_tr = st.number_input("Valor a Transferir (R$)", min_value=0.0, format="%.2f")
-                if st.form_submit_button("AVANÇAR"):
-                    saldo_origem = especie if origem == "Espécie" else pix
-                    if valor_tr <= 0 or valor_tr > saldo_origem: st.error("❌ Saldo insuficiente ou valor inválido.")
-                    else:
-                        st.session_state.dados_transf_temp = {"origem": origem, "destino": "Pix" if origem == "Espécie" else "Espécie", "valor_tr": valor_tr, "hoje": datetime.now().strftime("%d/%m/%Y")}
-                        st.session_state.confirmar_transf = True; st.rerun()
+        st.markdown("<h3><i class='bi bi-arrow-left-right' style='color: #6366f1;'></i> Transferência</h3>", unsafe_allow_html=True)
+        with st.form("f_trans"):
+            orig = st.selectbox("De:", ["Espécie", "Pix"])
+            val = st.number_input("Valor R$", min_value=0.0, format="%.2f")
+            nota_t = st.text_input("Nota / Observação (Opcional)")
+            if st.form_submit_button("EXECUTAR"):
+                dest = "Pix" if orig == "Espécie" else "Espécie"
+                salvar_lancamento({"Data": datetime.now().strftime("%d/%m/%Y"), "Descrição": f"TRANSFERÊNCIA: {orig.upper()} > {dest.upper()}", "Categoria": "Transferência", "Tipo": "Transferência", "Local": f"{orig} -> {dest}", "Valor": val, "Nota": nota_t.strip()})
+                st.success("✅ Transferência concluída!"); st.rerun()
 
-    # -- HISTÓRICO --
     elif menu == "Histórico":
-        st.markdown("<h3><i class='bi bi-file-earmark-bar-graph' style='color: #6366f1; margin-right: 10px;'></i>Histórico Analítico</h3>", unsafe_allow_html=True)
-        if st.session_state.msg_sucesso != "":
-            st.success(st.session_state.msg_sucesso); st.session_state.msg_sucesso = ""
-            
+        st.markdown("<h3><i class='bi bi-file-earmark-bar-graph' style='color: #6366f1;'></i> Histórico Analítico</h3>", unsafe_allow_html=True)
         cf1, cf2, cf3 = st.columns([2, 1.5, 1.5])
-        with cf1: datas_sel = st.date_input("Período:", value=[], format="DD/MM/YYYY")
-        with cf2: f_tipo = st.selectbox("Tipo:", ["Todos", "Entrada", "Saída", "Transferência"])
-        with cf3: f_cat = st.selectbox("Categoria:", ["Todas"] + sorted(df['Categoria'].unique().tolist()) if not df.empty else ["Todas"])
+        datas_sel = cf1.date_input("Período:", value=[], format="DD/MM/YYYY")
+        f_tipo = cf2.selectbox("Tipo:", ["Todos", "Entrada", "Saída", "Transferência"])
+        f_cat = cf3.selectbox("Categoria:", ["Todas"] + sorted(df['Categoria'].unique().tolist()) if not df.empty else ["Todas"])
         
         df_f = df.copy()
         if not df_f.empty:
             df_f['Data_dt'] = pd.to_datetime(df_f['Data'], format='%d/%m/%Y', errors='coerce')
-            if datas_sel:
-                if isinstance(datas_sel, tuple) and len(datas_sel) == 2:
-                    df_f = df_f[(df_f['Data_dt'].dt.date >= datas_sel[0]) & (df_f['Data_dt'].dt.date <= datas_sel[1])]
-                elif not isinstance(datas_sel, tuple): df_f = df_f[df_f['Data_dt'].dt.date == datas_sel]
+            if isinstance(datas_sel, tuple) and len(datas_sel) == 2:
+                df_f = df_f[(df_f['Data_dt'].dt.date >= datas_sel[0]) & (df_f['Data_dt'].dt.date <= datas_sel[1])]
             if f_tipo != "Todos": df_f = df_f[df_f['Tipo'] == f_tipo]
             if f_cat != "Todas": df_f = df_f[df_f['Categoria'] == f_cat]
-            df_f['orig_idx'] = df_f.index
             df_f = df_f.sort_values(by=['Data_dt', 'id'], ascending=[False, False])
-
-        # --- Variáveis para Resumo (Restauradas) ---
-        df_ent_f = df_f[df_f['Tipo'] == 'Entrada']
-        df_sai_f = df_f[df_f['Tipo'] == 'Saída']
-        tg = df_ent_f['Valor'].sum() if not df_ent_f.empty else 0.0
-        ts = abs(df_sai_f['Valor'].sum()) if not df_sai_f.empty else 0.0
 
         st.divider()
         col_tit, col_cnt = st.columns([6, 4])
@@ -368,11 +291,8 @@ else:
             elif row['Tipo'] == 'Saída': cl, cor, pre = "card-saida", "#f43f5e", "-"
             else: cl, cor, pre = "card-transferencia", "#facc15", ""
             
-            # --- TRADUÇÃO DO NÚMERO DO MÊS PARA TEXTO ---
-            meses_map = {"01": "Jan", "02": "Fev", "03": "Mar", "04": "Abril", "05": "Maio", "06": "Jun", 
-                         "07": "Jul", "08": "Ago", "09": "Set", "10": "Out", "11": "Nov", "12": "Dez"}
-            mes_num = row['Data'][3:5]
-            mes_nome = meses_map.get(mes_num, mes_num)
+            meses_map = {"01": "Jan", "02": "Fev", "03": "Mar", "04": "Abril", "05": "Maio", "06": "Jun", "07": "Jul", "08": "Ago", "09": "Set", "10": "Out", "11": "Nov", "12": "Dez"}
+            mes_nome = meses_map.get(row['Data'][3:5], row['Data'][3:5])
 
             with st.container():
                 st.markdown(f"""<div class="historico-card {cl}">
@@ -383,187 +303,54 @@ else:
                         </div>
                         <div>
                             <b style="font-size: 1.05rem; text-transform: uppercase;">{str(row['Descrição']).strip()}</b><br>
-                            <small style="color: #94a3b8;"><i class="bi bi-tag"></i> {row['Categoria']} | <i class="bi bi-geo-alt"></i> {row['Local']}</small>
+                            <small style="color: #94a3b8;">{row['Categoria']} | {row['Local']}</small>
                         </div>
                     </div>
                     <div style="text-align: right;"><b style="color: {cor}; font-size: 1.3rem;">{pre} R$ {abs(row['Valor']):,.2f}</b></div>
                 </div>""", unsafe_allow_html=True)
                 
-                c_del = st.columns([11, 1])
-                if st.session_state.id_excluir == row['id']:
-                    cx1, cx2 = c_del[1].columns(2)
-                    cx1.button("✓", key=f"s_{row['id']}", on_click=confirmar_exclusao, args=(row['id'],), type="primary")
-                    cx2.button("✗", key=f"n_{row['id']}", on_click=cancelar_exclusao)
-                else: 
-                    c_del[1].button("🗑️", key=f"d_{row['id']}", on_click=pedir_exclusao, args=(row['id'],))
-
-        # --- FUNÇÃO GERADORA DE PDF (RESTAURO DO PADRÃO PREMIUM) ---
-        if not df_f.empty:
-            def gerar_relatorio_pdf(df_filtrado, dt_sel):
-                pdf = FPDF()
-                pdf.add_page()
-                pdf.set_margins(15, 15, 15)
-                def s_str(text): return str(text).encode('latin-1', 'replace').decode('latin-1')
-
-                # CABEÇALHO
-                pdf.set_font("Arial", 'B', 16)
-                pdf.cell(0, 10, s_str("LOUVOR ETERNO"), ln=True, align='C')
-                pdf.set_font("Arial", 'B', 11)
+                # Coluna de ferramentas (Nota e Lixeira)
+                c_tools = st.columns([10, 1.2, 1.2])
+                with c_tools[1]:
+                    nota_val = row.get('Nota')
+                    if pd.notna(nota_val) and str(nota_val).strip() != "":
+                        with st.popover("💬", use_container_width=True):
+                            st.info(f"**Observação:**\n\n{nota_val}")
                 
-                periodo = "RELATÓRIO FINANCEIRO GERAL"
-                if dt_sel:
-                    d_i = dt_sel[0] if isinstance(dt_sel, tuple) else dt_sel
-                    d_f = dt_sel[1] if isinstance(dt_sel, tuple) and len(dt_sel)==2 else d_i
-                    periodo = f"RELATÓRIO: {d_i.strftime('%d/%m/%Y')} A {d_f.strftime('%d/%m/%Y')}"
-                pdf.cell(0, 10, s_str(periodo), ln=True, align='C')
-                pdf.ln(8)
+                with c_tools[2]:
+                    if st.session_state.id_excluir == row['id']:
+                        cx1, cx2 = st.columns(2)
+                        cx1.button("✓", key=f"s_{row['id']}", on_click=confirmar_exclusao, args=(row['id'],), type="primary")
+                        cx2.button("✗", key=f"n_{row['id']}", on_click=cancelar_exclusao)
+                    else:
+                        st.button("🗑️", key=f"d_{row['id']}", on_click=lambda id=row['id']: st.session_state.update({"id_excluir": id}))
 
-                # RESUMO FINANCEIRO
-                df_rep = df_filtrado[df_filtrado['Tipo'] != 'Transferência']
-                tg = df_rep[df_rep['Tipo'] == 'Entrada']['Valor'].sum()
-                ts = abs(df_rep[df_rep['Tipo'] == 'Saída']['Valor'].sum())
-                
-                pdf.set_font("Arial", 'B', 10)
-                pdf.cell(40, 6, "Total de Entradas:", 0, 0); pdf.set_font("Arial", '', 10)
-                pdf.cell(0, 6, s_str(f"R$ {tg:,.2f}"), 0, 1)
-                pdf.set_font("Arial", 'B', 10)
-                pdf.cell(40, 6, "Total de Saídas:", 0, 0); pdf.set_font("Arial", '', 10)
-                pdf.cell(0, 6, s_str(f"R$ {ts:,.2f}"), 0, 1)
-                pdf.set_font("Arial", 'B', 10)
-                pdf.cell(40, 6, "Saldo Líquido:", 0, 0); pdf.set_font("Arial", '', 10)
-                pdf.cell(0, 6, s_str(f"R$ {(tg-ts):,.2f}"), 0, 1)
-                pdf.ln(10)
-
-                # TABELA
-                pdf.set_font("Arial", 'B', 10); pdf.cell(0, 10, s_str("MOVIMENTAÇÕES DETALHADAS"), 0, 1)
-                pdf.set_fill_color(230, 230, 230); pdf.set_font("Arial", 'B', 8)
-                pdf.cell(22, 8, "DATA", 1, 0, 'C', fill=True); pdf.cell(78, 8, s_str("DESCRIÇÃO"), 1, 0, 'L', fill=True)
-                pdf.cell(35, 8, "CATEGORIA", 1, 0, 'C', fill=True); pdf.cell(20, 8, "TIPO", 1, 0, 'C', fill=True); pdf.cell(25, 8, "VALOR (R$)", 1, 1, 'C', fill=True)
-
-                if df_rep.empty:
-                    pdf.cell(180, 8, "Nenhum registro de entrada ou saida.", 1, 1, 'C')
-                else:
-                    df_sort = df_rep.sort_values(by=['Data_dt', 'orig_idx'], ascending=[True, True])
-                    m_pt = {1:"JANEIRO",2:"FEVEREIRO",3:"MARÇO",4:"ABRIL",5:"MAIO",6:"JUNHO",7:"JULHO",8:"AGOSTO",9:"SETEMBRO",10:"OUTUBRO",11:"NOVEMBRO",12:"DEZEMBRO"}
-                    m_atual = ""
-                    for _, r in df_sort.iterrows():
-                        g_mes = f"{m_pt.get(r['Data_dt'].month, '')} {r['Data_dt'].year}"
-                        if g_mes != m_atual:
-                            m_atual = g_mes
-                            pdf.set_font("Arial", 'B', 9); pdf.set_fill_color(245, 245, 245)
-                            pdf.cell(180, 8, s_str(m_atual), 1, 1, 'L', fill=True)
-                        pdf.set_font("Arial", '', 8)
-                        pdf.cell(22, 8, s_str(r['Data']), 1, 0, 'C')
-                        pdf.cell(78, 8, s_str(str(r['Descrição'])[:45]), 1, 0, 'L')
-                        pdf.cell(35, 8, s_str(str(r['Categoria'])[:20]), 1, 0, 'C')
-                        pdf.cell(20, 8, s_str(str(r['Tipo']).upper()), 1, 0, 'C')
-                        pdf.cell(25, 8, s_str(f"R$ {abs(r['Valor']):,.2f}"), 1, 1, 'R')
-
-                # ASSINATURAS
-                if pdf.get_y() > 240: pdf.add_page()
-                pdf.ln(30); pdf.set_font("Arial", '', 10)
-                pdf.cell(60, 5, "_________________________", 0, 0, 'C'); pdf.cell(60, 5, "_________________________", 0, 0, 'C'); pdf.cell(60, 5, "_________________________", 0, 1, 'C')
-                pdf.cell(60, 5, "Pastor", 0, 0, 'C'); pdf.cell(60, 5, s_str("Líder de Jovens"), 0, 0, 'C'); pdf.cell(60, 5, "Tesoureiro", 0, 1, 'C')
-                return pdf.output(dest="S").encode('latin-1')
-            
-            st.download_button("📄 Gerar Relatório em PDF", data=gerar_relatorio_pdf(df_f, datas_sel), file_name=f"Relatorio_{datetime.now().strftime('%d%m%Y')}.pdf", type="primary")
-
-        # --- ÁREA DE DESEMPENHO (GRÁFICOS RESTAURADOS) ---
-        st.divider()
-        st.markdown("<div style='text-align: center;'><i class='bi bi-bar-chart-fill' style='font-size: 2rem; color: #10b981;'></i><h2 style='font-weight: 900;'>Desempenho Financeiro</h2></div>", unsafe_allow_html=True)
-        
-        cda1, cda2, cda3 = st.columns(3)
-        def card_d(t, v, c): st.markdown(f"<div style='background-color: rgba({c}, 0.05); border: 1px solid rgba({c}, 0.3); border-radius: 20px; padding: 20px; text-align: center;'><div style='color: rgb({c}); font-size: 0.8rem; font-weight: 800;'>{t}</div><div style='color: rgb({c}); font-size: 1.8rem; font-weight: 900;'>R$ {v:,.2f}</div></div>", unsafe_allow_html=True)
-        with cda1: card_d("GANHOS (+)", tg, "16, 185, 129")
-        with cda2: card_d("GASTOS (-)", ts, "244, 63, 94")
-        with cda3: card_d("SALDO PERÍODO", tg-ts, "99, 102, 241")
-
-        st.markdown("<div style='margin-top: 35px;'></div>", unsafe_allow_html=True)
-
-        if not df_ent_f.empty or not df_sai_f.empty:
-            cg1, cg2 = st.columns(2)
-            with cg1:
-                if not df_ent_f.empty:
-                    st.markdown("<h5 style='text-align: center; color: #94a3b8; font-size: 0.8rem;'>ORIGEM DAS ENTRADAS</h5>", unsafe_allow_html=True)
-                    dg = df_ent_f.groupby('Categoria')['Valor'].sum().reset_index()
-                    fig = go.Figure(data=[go.Pie(labels=dg['Categoria'], values=dg['Valor'], hole=.65, marker_colors=COLORS_ENTRADA, textinfo='none')])
-                    fig.update_layout(showlegend=True, paper_bgcolor='rgba(0,0,0,0)', margin=dict(t=10, b=10, l=10, r=10), height=250, legend=dict(font=dict(color="#f8fafc")))
-                    st.plotly_chart(fig, use_container_width=True)
-            with cg2:
-                if not df_sai_f.empty:
-                    st.markdown("<h5 style='text-align: center; color: #94a3b8; font-size: 0.8rem;'>DESTINO DOS GASTOS</h5>", unsafe_allow_html=True)
-                    dg = df_sai_f.groupby('Categoria')['Valor'].sum().reset_index()
-                    fig = go.Figure(data=[go.Pie(labels=dg['Categoria'], values=abs(dg['Valor']), hole=.65, marker_colors=COLORS_SAIDA, textinfo='none')])
-                    fig.update_layout(showlegend=True, paper_bgcolor='rgba(0,0,0,0)', margin=dict(t=10, b=10, l=10, r=10), height=250, legend=dict(font=dict(color="#f8fafc")))
-                    st.plotly_chart(fig, use_container_width=True)
-
-    # -- AJUSTES --
     elif menu == "Ajustes":
-        st.markdown("<h3><i class='bi bi-sliders' style='color: #6366f1; margin-right: 10px;'></i>Ajustes</h3>", unsafe_allow_html=True)
-        if st.session_state.msg_sucesso != "":
-            st.success(st.session_state.msg_sucesso); st.session_state.msg_sucesso = ""
-
-        c_ent, c_sai = st.columns(2)
-        with c_ent:
-            st.write("**Categorias de Entrada**")
-            new_e = st.text_input("Nova Entrada", key="ne")
-            if st.button("Adicionar") and new_e.strip():
+        st.markdown("<h3><i class='bi bi-sliders'></i> Ajustes</h3>", unsafe_allow_html=True)
+        c1, c2 = st.columns(2)
+        with c1:
+            st.write("**Ganhos**")
+            new_e = st.text_input("Nova Entrada")
+            if st.button("Adicionar", key="add_e") and new_e:
                 st.session_state.categorias["entrada"].append(new_e.strip()); salvar_categorias_db(st.session_state.categorias); st.rerun()
-            
-            # --- ALTERAÇÃO AQUI: EXCLUSÃO DE CATEGORIAS (ENTRADA) ---
-            for c in st.session_state.categorias["entrada"]: 
-                col1, col2 = st.columns([8, 2])
-                col1.write(f"• {c}")
-                if col2.button("🗑️", key=f"del_ent_{c}"):
-                    st.session_state.categorias["entrada"].remove(c)
-                    salvar_categorias_db(st.session_state.categorias)
-                    st.rerun()
-
-        with c_sai:
-            st.write("**Categorias de Saída**")
-            new_s = st.text_input("Nova Saída", key="ns")
-            if st.button("Adicionar", key="be") and new_s.strip():
+            for c in st.session_state.categorias["entrada"]:
+                col_a, col_b = st.columns([8, 2])
+                col_a.write(f"• {c}")
+                if col_b.button("🗑️", key=f"de_{c}"):
+                    st.session_state.categorias["entrada"].remove(c); salvar_categorias_db(st.session_state.categorias); st.rerun()
+        with c2:
+            st.write("**Gastos**")
+            new_s = st.text_input("Nova Saída")
+            if st.button("Adicionar", key="add_s") and new_s:
                 st.session_state.categorias["saida"].append(new_s.strip()); salvar_categorias_db(st.session_state.categorias); st.rerun()
-            
-            # --- ALTERAÇÃO AQUI: EXCLUSÃO DE CATEGORIAS (SAÍDA) ---
-            for c in st.session_state.categorias["saida"]: 
-                col1, col2 = st.columns([8, 2])
-                col1.write(f"• {c}")
-                if col2.button("🗑️", key=f"del_sai_{c}"):
-                    st.session_state.categorias["saida"].remove(c)
-                    salvar_categorias_db(st.session_state.categorias)
-                    st.rerun()
+            for c in st.session_state.categorias["saida"]:
+                col_a, col_b = st.columns([8, 2])
+                col_a.write(f"• {c}")
+                if col_b.button("🗑️", key=f"ds_{c}"):
+                    st.session_state.categorias["saida"].remove(c); salvar_categorias_db(st.session_state.categorias); st.rerun()
 
-        st.divider()
-        st.markdown("#### Backup e Sincronização")
-        if st.session_state.msg_import: 
-            if "✅" in st.session_state.msg_import: st.success(st.session_state.msg_import)
-            else: st.error(st.session_state.msg_import)
-            st.session_state.msg_import = ""
-
-        b1, b2 = st.columns(2)
-        with b1:
-            out = io.BytesIO()
-            with pd.ExcelWriter(out, engine='openpyxl') as wr: df.to_excel(wr, index=False)
-            # NOME DO ARQUIVO COM DATA E HORA
-            nome_backup = f"backup {datetime.now().strftime('%d%m%Y %Hh%M')}.xlsx"
-            st.download_button("📤 EXPORTAR BACKUP", data=out.getvalue(), file_name=nome_backup, type="primary", use_container_width=True)
-        with b2:
-            up = st.file_uploader("Upload", type=['xlsx', 'csv'], label_visibility="collapsed", key=f"up_{st.session_state.up_key}")
-            if up is not None:
-                st.warning("⚠️ Mesclar dados na nuvem?")
-                if st.button("✅ Confirmar Mesclagem", type="primary", use_container_width=True):
-                    try:
-                        df_in = pd.read_csv(up) if up.name.endswith('.csv') else pd.read_excel(up)
-                        df_in = df_in[['Data', 'Descrição', 'Categoria', 'Tipo', 'Local', 'Valor']]
-                        df_in['Valor'] = df_in['Valor'].astype(float)
-                        novos = salvar_em_lote(df_in, df)
-                        st.session_state.msg_import = f"✅ {novos} novos registros salvos na nuvem!"; st.session_state.up_key += 1; st.rerun()
-                    except Exception as e: st.error(f"Erro: {e}")
-
-    # -- SAIR --
     elif menu == "Sair":
-        st.markdown("<h3><i class='bi bi-box-arrow-right' style='color: #f43f5e; margin-right: 10px;'></i>Encerrar Sessão</h3>", unsafe_allow_html=True)
         st.warning("Deseja sair?")
         if st.button("Sim, sair agora", type="primary"): st.session_state.autenticado = False; st.rerun()
+        # Uso do callback para evitar o erro do widget
         st.button("Cancelar", on_click=cancelar_saida)
