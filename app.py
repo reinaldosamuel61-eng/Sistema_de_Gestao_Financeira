@@ -11,7 +11,7 @@ from firebase_admin import credentials, firestore
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
 st.set_page_config(page_title="Caixa Louvor Eterno", page_icon="💰", layout="wide")
 
-# --- 2. ESTILO CSS GERAL (PADRONIZAÇÃO COM ÍCONES CSS) ---
+# --- 2. ESTILO CSS GERAL (BOTÕES PADRONIZADOS E FEEDBACKS TEMPORIZADOS) ---
 st.markdown('<meta name="google" content="notranslate">', unsafe_allow_html=True)
 st.markdown(r"""<style>
 @import url("https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css");
@@ -26,16 +26,20 @@ div[data-testid="stMetric"] { background-color: #1e293b !important; border-radiu
 [data-testid="stMetricValue"] > div { color: #ffffff !important; font-weight: 900; }
 [data-testid="stMetricLabel"] > div { color: #94a3b8 !important; text-transform: uppercase; letter-spacing: 1px; }
 
-/* PADRONIZAÇÃO DE TODOS OS BOTÕES */
-.stButton>button, .stDownloadButton>button, .nav-btn-premium { width: 100%; border-radius: 12px; height: 3em; background-color: #6366f1 !important; color: white !important; font-weight: 800; border: none !important; transition: 0.3s; text-transform: uppercase; font-size: 14px; display: flex; align-items: center; justify-content: center; text-decoration: none !important; cursor: pointer; gap: 10px; }
-.stButton>button:hover, .stDownloadButton>button:hover, .nav-btn-premium:hover { background-color: #4f46e5 !important; box-shadow: 0 0 15px rgba(99, 102, 241, 0.4); color: white !important; }
+/* PADRONIZAÇÃO DE TODOS OS BOTÕES DO SISTEMA */
+.stButton>button, .stDownloadButton>button, .nav-btn-premium, [data-testid="stFileUploadDropzone"] button { width: 100% !important; border-radius: 12px !important; height: 3.2em !important; background-color: #6366f1 !important; color: white !important; font-weight: 800 !important; border: none !important; transition: 0.3s !important; text-transform: uppercase !important; font-size: 14px !important; display: flex !important; align-items: center !important; justify-content: center !important; text-decoration: none !important; cursor: pointer !important; gap: 10px !important; box-shadow: none !important; }
+.stButton>button:hover, .stDownloadButton>button:hover, .nav-btn-premium:hover, [data-testid="stFileUploadDropzone"] button:hover { background-color: #4f46e5 !important; box-shadow: 0 0 15px rgba(99, 102, 241, 0.4) !important; color: white !important; }
 
-/* AJUSTES NO UPLOAD PARA USAR ÍCONE BOOTSTRAP */
+/* BOTÕES DE EXCLUSÃO (ÍCONE DE LIXEIRA VIA CSS) */
+button[key^="d_"], button[key^="de_"], button[key^="ds_"] { background-color: transparent !important; border: 1px solid #475569 !important; color: #f43f5e !important; }
+button[key^="d_"]:hover, button[key^="de_"]:hover, button[key^="ds_"]:hover { background-color: #f43f5e !important; color: white !important; }
+
+/* AJUSTE ESPECÍFICO PARA O UPLOAD (BOTÃO IMPORTAR) */
 [data-testid="stFileUploader"] { padding: 0 !important; }
 [data-testid="stFileUploadDropzone"] { border: none !important; background-color: transparent !important; padding: 0 !important; min-height: 0 !important; }
 [data-testid="stFileUploadDropzone"] > div > svg, [data-testid="stFileUploadDropzone"] > div > small, [data-testid="stFileUploadDropzone"] > div > span { display: none !important; }
-[data-testid="stFileUploadDropzone"] button { width: 100% !important; height: 3em !important; border-radius: 12px !important; background-color: #6366f1 !important; color: transparent !important; position: relative !important; font-weight: 800 !important; text-transform: uppercase !important; border: none !important; }
-[data-testid="stFileUploadDropzone"] button::after { content: "\F2B8  IMPORTAR BACKUP"; font-family: "bootstrap-icons"; position: absolute !important; top: 0; left: 0; right: 0; bottom: 0; display: flex !important; align-items: center !important; justify-content: center !important; color: white !important; font-size: 14px; }
+[data-testid="stFileUploadDropzone"] button { color: transparent !important; position: relative !important; }
+[data-testid="stFileUploadDropzone"] button::after { content: "\F2B8  IMPORTAR BACKUP"; font-family: "bootstrap-icons"; position: absolute !important; top: 0; left: 0; right: 0; bottom: 0; display: flex !important; align-items: center !important; justify-content: center !important; color: white !important; font-size: 14px !important; }
 
 button[kind="secondary"] { background-color: #1e293b !important; border: 1px solid #475569 !important; color: #f43f5e !important; }
 button[kind="secondary"]:hover { background-color: #334155 !important; border-color: #f43f5e !important; }
@@ -43,9 +47,11 @@ button[kind="secondary"]:hover { background-color: #334155 !important; border-co
 .stDataFrame { background-color: #1e293b; }
 div[data-testid="stPopover"] > button { background-color: transparent !important; border: 1px solid #475569 !important; color: #94a3b8 !important; padding: 0px 10px !important; height: 2.2em !important; }
 
-/* FEEDBACK FLUTUANTE PROFISSIONAL */
-.feedback-float { position: fixed; top: 80px; left: 50%; transform: translateX(-50%); z-index: 999999; min-width: 320px; background-color: #10b981; color: white; padding: 14px 28px; border-radius: 12px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.7); border: 1px solid rgba(255,255,255,0.3); font-weight: bold; text-align: center; animation: fadeInDown 0.5s ease; pointer-events: none; display: flex; align-items: center; justify-content: center; gap: 10px; }
-@keyframes fadeInDown { from { opacity: 0; transform: translate(-50%, -30px); } to { opacity: 1; transform: translate(-50%, 0); } }
+/* FEEDBACKS FLUTUANTES (3 SEGUNDOS) */
+.feedback-float { position: fixed; top: 80px; left: 50%; transform: translateX(-50%); z-index: 999999; min-width: 320px; background-color: #10b981; color: white; padding: 14px 28px; border-radius: 12px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.7); border: 1px solid rgba(255,255,255,0.3); font-weight: bold; text-align: center; pointer-events: none; display: flex; align-items: center; justify-content: center; gap: 10px; animation: toastAutoClose 3s ease-in-out forwards; }
+.feedback-float-delayed { position: fixed; top: 80px; left: 50%; transform: translateX(-50%); z-index: 999998; min-width: 320px; background-color: #6366f1; color: white; padding: 14px 28px; border-radius: 12px; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.7); border: 1px solid rgba(255,255,255,0.3); font-weight: bold; text-align: center; pointer-events: none; display: flex; align-items: center; justify-content: center; gap: 10px; opacity: 0; animation: toastAutoClose 3s ease-in-out 3s forwards; }
+
+@keyframes toastAutoClose { 0% { opacity: 0; transform: translate(-50%, -30px); } 15% { opacity: 1; transform: translate(-50%, 0); } 85% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: 0; transform: translate(-50%, -30px); visibility: hidden; } }
 </style>""", unsafe_allow_html=True)
 
 # Cores para os gráficos
@@ -135,6 +141,7 @@ def salvar_categorias_db(categorias):
 
 # --- 4. INICIALIZAÇÃO DE ESTADOS E CALLBACKS ---
 if 'autenticado' not in st.session_state: st.session_state.autenticado = False
+if 'login_sequence' not in st.session_state: st.session_state.login_sequence = False
 if 'confirmar_lancamento' not in st.session_state: st.session_state.confirmar_lancamento = False
 if 'dados_temp' not in st.session_state: st.session_state.dados_temp = {}
 if 'confirmar_transf' not in st.session_state: st.session_state.confirmar_transf = False
@@ -151,7 +158,7 @@ if 'categorias' not in st.session_state and db is not None:
 def confirmar_exclusao(doc_id):
     excluir_lancamento_db(doc_id)
     st.session_state.id_excluir = None
-    st.session_state.msg_icon = "bi bi-trash"
+    st.session_state.msg_icon = "bi bi-trash-fill"
     st.session_state.msg_sucesso = "LANÇAMENTO EXCLUÍDO COM SUCESSO!"
 
 def cancelar_exclusao(): st.session_state.id_excluir = None
@@ -169,23 +176,29 @@ if not st.session_state.autenticado:
             if st.button("ACESSAR SISTEMA"):
                 if chave == st.secrets.get("chave_grupo", "admin"):
                     st.session_state.autenticado = True
-                    st.session_state.msg_icon = "bi bi-database-check"
-                    st.session_state.msg_sucesso = "BANCO DE DADOS CONECTADO COM SUCESSO!"
+                    st.session_state.login_sequence = True
                     st.rerun()
-                else: st.error("Chave incorreta!")
+                else: st.error("Senha incorreta!")
 else:
     if db is None: st.error("Erro de conexão."); st.stop()
 
+    # --- ÁREA DE NOTIFICAÇÕES (CANVAS) ---
+    if st.session_state.login_sequence:
+        st.markdown(r"""<div class="feedback-float"><i class="bi bi-person-check"></i> BEM-VINDO AO SISTEMA!</div>""", unsafe_allow_html=True)
+        st.markdown(r"""<div class="feedback-float-delayed"><i class="bi bi-database-check"></i> BANCO DE DADOS CONECTADO COM SUCESSO!</div>""", unsafe_allow_html=True)
+        st.session_state.login_sequence = False
+    
     if st.session_state.msg_sucesso:
         st.markdown(f"""<div class="feedback-float"><i class="{st.session_state.msg_icon}"></i> {st.session_state.msg_sucesso}</div>""", unsafe_allow_html=True)
         st.session_state.msg_sucesso = ""
 
     st.markdown("<h2 style='text-align: center; color: #6366f1; font-weight: 900; margin-top: 0;'>CAIXA LOUVOR ETERNO</h2>", unsafe_allow_html=True)
     
+    # MENU REORDENADO CONFORME SOLICITADO
     menu = option_menu(
         menu_title=None,
-        options=["Resumo", "Lançar", "Transferir", "Histórico", "Ajustes", "Sair"],
-        icons=['house', 'plus-circle', 'arrow-left-right', 'clock-history', 'gear', 'box-arrow-right'],
+        options=["Resumo", "Histórico", "Lançar", "Transferir", "Ajustes", "Sair"],
+        icons=['house', 'clock-history', 'plus-circle', 'arrow-left-right', 'gear', 'box-arrow-right'],
         default_index=0, orientation="horizontal", key="menu_principal",
         styles={"container": {"padding": "0!important", "background-color": "#1e293b", "border-radius": "15px", "margin-bottom": "20px"},
                 "nav-link": {"font-size": "14px", "text-align": "center", "color": "#94a3b8", "font-weight": "bold"},
@@ -218,12 +231,12 @@ else:
         st.markdown("<h3><i class='bi bi-pencil-square' style='color: #6366f1;'></i> Novo Lançamento</h3>", unsafe_allow_html=True)
         if st.session_state.confirmar_lancamento:
             d = st.session_state.dados_temp
-            st.warning("Confirme os dados abaixo:")
+            st.warning("Verifique os dados antes de confirmar:")
             st.info(f"TIPO: {d['Tipo'].upper()} | VALOR: R$ {abs(d['Valor']):,.2f} | LOCAL: {d['Local'].upper()}")
             if d.get('Nota'): st.info(f"NOTA: {d['Nota']}")
             c1, c2 = st.columns(2)
             if c1.button("CONFIRMAR"):
-                salvar_lancamento(d); st.session_state.confirmar_lancamento = False; st.session_state.msg_icon="bi bi-check-circle"; st.session_state.msg_sucesso = "LANÇAMENTO REGISTRADO!"; st.rerun()
+                salvar_lancamento(d); st.session_state.confirmar_lancamento = False; st.session_state.msg_icon="bi bi-check-circle-fill"; st.session_state.msg_sucesso = "LANÇAMENTO REGISTRADO!"; st.rerun()
             if c2.button("CANCELAR"): st.session_state.confirmar_lancamento = False; st.rerun()
         else:
             with st.form("f_lan"):
@@ -245,11 +258,11 @@ else:
         if st.session_state.confirmar_transf:
             d = st.session_state.dados_transf_temp
             st.warning("Confirme a transferência:")
-            st.info(f"DE: {d['origem'].upper()} para {d['destino'].upper()} | VALOR: R$ {d['Valor']:,.2f}")
+            st.info(f"DE: {d['origem'].upper()} PARA: {d['destino'].upper()} | VALOR: R$ {d['Valor']:,.2f}")
             c1, c2 = st.columns(2)
             if c1.button("CONFIRMAR"):
                 salvar_lancamento({"Data": d['Data'], "Descrição": d['Descrição'], "Categoria": d['Categoria'], "Tipo": d['Tipo'], "Local": d['Local'], "Valor": d['Valor'], "Nota": d['Nota']})
-                st.session_state.confirmar_transf = False; st.session_state.msg_icon="bi bi-arrow-left-right"; st.session_state.msg_sucesso = "TRANSFERÊNCIA CONCLUÍDA!"; st.rerun()
+                st.session_state.confirmar_transf = False; st.session_state.msg_icon="bi bi-arrow-repeat"; st.session_state.msg_sucesso = "TRANSFERÊNCIA CONCLUÍDA!"; st.rerun()
             if c2.button("CANCELAR"): st.session_state.confirmar_transf = False; st.rerun()
         else:
             with st.form("f_trans"):
@@ -296,20 +309,14 @@ else:
                 pdf.set_font("Arial", '', 8)
                 for _, r in df_rep.iterrows():
                     tipo_pdf = "ENTRADA" if r['Tipo'] == "Entrada" else "SAIDA"
-                    pdf.cell(22, 7, s_str(r['Data']), 1, 0, 'C')
-                    pdf.cell(78, 7, s_str(str(r['Descrição'])[:40]), 1, 0, 'L')
-                    pdf.cell(35, 7, s_str(str(r['Categoria'])[:15]), 1, 0, 'C')
-                    pdf.cell(20, 7, s_str(tipo_pdf), 1, 0, 'C')
-                    pdf.cell(25, 7, s_str(f"{r['Valor']:,.2f}"), 1, 1, 'R')
+                    pdf.cell(22, 7, s_str(r['Data']), 1, 0, 'C'); pdf.cell(78, 7, s_str(str(r['Descrição'])[:40]), 1, 0, 'L'); pdf.cell(35, 7, s_str(str(r['Categoria'])[:15]), 1, 0, 'C'); pdf.cell(20, 7, s_str(tipo_pdf), 1, 0, 'C'); pdf.cell(25, 7, s_str(f"{r['Valor']:,.2f}"), 1, 1, 'R')
                 pdf.ln(20); pdf.cell(60, 5, "________________", 0, 0, 'C'); pdf.cell(60, 5, "________________", 0, 0, 'C'); pdf.cell(60, 5, "________________", 0, 1, 'C')
                 pdf.cell(60, 5, "Pastor", 0, 0, 'C'); pdf.cell(60, 5, "Liderança", 0, 0, 'C'); pdf.cell(60, 5, "Tesouraria", 0, 1, 'C')
                 return pdf.output(dest="S").encode('latin-1')
             
             cb1, cb2 = st.columns(2)
-            with cb1:
-                st.download_button(label="GERAR RELATÓRIO PDF", data=gerar_relatorio_pdf(df_f, datas_sel), file_name="relatorio.pdf", type="primary", use_container_width=True)
-            with cb2:
-                st.markdown('<a href="#graficos_secao" target="_self" class="nav-btn-premium"><i class="bi bi-bar-chart"></i> VER DESEMPENHO</a>', unsafe_allow_html=True)
+            with cb1: st.download_button(label="📄 GERAR RELATÓRIO PDF", data=gerar_relatorio_pdf(df_f, datas_sel), file_name="relatorio.pdf", type="primary", use_container_width=True)
+            with cb2: st.markdown('<a href="#graficos_secao" target="_self" class="nav-btn-premium"><i class="bi bi-bar-chart"></i> VER DESEMPENHO</a>', unsafe_allow_html=True)
 
         st.divider()
         col_tit, col_cnt = st.columns([6, 4])
@@ -332,15 +339,16 @@ else:
                 with c_tools[2]:
                     if st.session_state.id_excluir == row['id']:
                         cx1, cx2 = st.columns(2)
-                        cx1.button("Sim", key=f"s_{row['id']}", on_click=confirmar_exclusao, args=(row['id'],), type="primary")
-                        cx2.button("Não", key=f"n_{row['id']}", on_click=cancelar_exclusao)
-                    else: st.button("Remover", key=f"d_{row['id']}", on_click=lambda id=row['id']: st.session_state.update({"id_excluir": id}))
+                        cx1.button("✓", key=f"s_{row['id']}", on_click=confirmar_exclusao, args=(row['id'],), type="primary")
+                        cx2.button("✗", key=f"n_{row['id']}", on_click=cancelar_exclusao)
+                    else:
+                        # PADRONIZAÇÃO DA LIXEIRA NO HISTÓRICO
+                        st.button("🗑️", key=f"d_{row['id']}", on_click=lambda id=row['id']: st.session_state.update({"id_excluir": id}))
 
         st.markdown('<div id="graficos_secao"></div>', unsafe_allow_html=True)
         st.divider()
         st.markdown("<div style='text-align: center;'><i class='bi bi-bar-chart-fill' style='font-size: 2rem; color: #10b981;'></i><h2 style='font-weight: 900;'>DESEMPENHO FINANCEIRO</h2></div>", unsafe_allow_html=True)
-        df_ent_f = df_f[df_f['Tipo'] == 'Entrada']
-        df_sai_f = df_f[df_f['Tipo'] == 'Saída']
+        df_ent_f = df_f[df_f['Tipo'] == 'Entrada']; df_sai_f = df_f[df_f['Tipo'] == 'Saída']
         tg_f = df_ent_f['Valor'].sum() if not df_ent_f.empty else 0.0
         ts_f = abs(df_sai_f['Valor'].sum()) if not df_sai_f.empty else 0.0
         cda1, cda2, cda3 = st.columns(3)
@@ -350,7 +358,6 @@ else:
         with cda3: card_d("SALDO PERÍODO", tg_f-ts_f, "99, 102, 241")
         
         st.markdown("<div style='margin-top: 45px;'></div>", unsafe_allow_html=True)
-        
         if not df_ent_f.empty or not df_sai_f.empty:
             cg1, spacer, cg2 = st.columns([1, 0.4, 1])
             with cg1:
@@ -380,7 +387,8 @@ else:
                 st.session_state.categorias["entrada"].append(new_e.strip()); salvar_categorias_db(st.session_state.categorias); st.rerun()
             for c in st.session_state.categorias["entrada"]:
                 col_a, col_b = st.columns([8, 2]); col_a.write(f"• {c}")
-                if col_b.button("Remover", key=f"de_{c}"):
+                # PADRONIZAÇÃO DA LIXEIRA NOS AJUSTES (MESMA DO HISTÓRICO)
+                if col_b.button("🗑️", key=f"de_{c}"):
                     st.session_state.categorias["entrada"].remove(c); salvar_categorias_db(st.session_state.categorias); st.rerun()
         with c2:
             st.write("**GASTOS**")
@@ -389,32 +397,31 @@ else:
                 st.session_state.categorias["saida"].append(new_s.strip()); salvar_categorias_db(st.session_state.categorias); st.rerun()
             for c in st.session_state.categorias["saida"]:
                 col_a, col_b = st.columns([8, 2]); col_a.write(f"• {c}")
-                if col_b.button("Remover", key=f"ds_{c}"):
+                # PADRONIZAÇÃO DA LIXEIRA NOS AJUSTES (MESMA DO HISTÓRICO)
+                if col_b.button("🗑️", key=f"ds_{c}"):
                     st.session_state.categorias["saida"].remove(c); salvar_categorias_db(st.session_state.categorias); st.rerun()
 
         st.divider(); st.markdown("#### BACKUP E SINCRONIZAÇÃO")
         if st.session_state.msg_import: 
-            st.markdown(f"""<div class="feedback-float"><i class="bi bi-check-circle"></i> {st.session_state.msg_import}</div>""", unsafe_allow_html=True)
+            st.markdown(f"""<div class="feedback-float"><i class="bi bi-cloud-check"></i> {st.session_state.msg_import}</div>""", unsafe_allow_html=True)
             st.session_state.msg_import = ""
         
         b1, b2 = st.columns(2)
         with b1:
-            out = io.BytesIO()
-            with pd.ExcelWriter(out, engine='openpyxl') as wr: df.to_excel(wr, index=False)
+            out = io.BytesIO(); df.to_excel(out, index=False)
             st.download_button(label="EXPORTAR BACKUP", data=out.getvalue(), file_name=f"backup_{datetime.now().strftime('%d%m%Y')}.xlsx", type="primary", use_container_width=True)
         with b2:
             up = st.file_uploader("Upload", type=['xlsx', 'csv'], label_visibility="collapsed", key=f"up_{st.session_state.up_key}")
             if up is not None:
-                if st.button("CONFIRMAR IMPORTAÇÃO", type="primary", use_container_width=True):
+                if st.button("✅ CONFIRMAR IMPORTAÇÃO", type="primary", use_container_width=True):
                     try:
                         df_in = pd.read_csv(up) if up.name.endswith('.csv') else pd.read_excel(up)
-                        df_in = df_in[['Data', 'Descrição', 'Categoria', 'Tipo', 'Local', 'Valor']]
-                        df_in['Valor'] = df_in['Valor'].astype(float)
-                        novos = salvar_em_lote(df_in, df)
-                        st.session_state.msg_import = f"{novos} NOVOS REGISTROS!"; st.session_state.up_key += 1; st.rerun()
+                        df_in['Valor'] = df_in['Valor'].astype(float); novos = salvar_em_lote(df_in, df)
+                        st.session_state.msg_icon = "bi bi-cloud-download"; st.session_state.msg_sucesso = f"{novos} NOVOS REGISTROS IMPORTADOS!"
+                        st.session_state.up_key += 1; st.rerun()
                     except Exception as e: st.error(f"Erro: {e}")
 
     elif menu == "Sair":
-        st.warning("DESEJA SAIR?")
+        st.warning("Deseja terminar a sessão?")
         if st.button("SIM, SAIR AGORA", type="primary"): st.session_state.autenticado = False; st.rerun()
         st.button("CANCELAR", on_click=cancelar_saida)
