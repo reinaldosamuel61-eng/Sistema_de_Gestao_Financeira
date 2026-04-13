@@ -35,23 +35,3 @@ Um sistema web completo e responsivo para a gestão financeira do departamento/g
 * **[Pandas](https://pandas.pydata.org/):** Estruturação, filtragem e manipulação de dados e planilhas Excel.
 * **[Plotly](https://plotly.com/python/):** Geração dos gráficos dinâmicos de desempenho financeiro.
 * **[FPDF](https://pyfpdf.github.io/fpdf2/):** Construção programática dos relatórios em PDF.
-
----
-
-## 🚀 Como Executar o Projeto Localmente
-
-### 1. Pré-requisitos
-Certifique-se de ter o Python instalado na sua máquina. É recomendável o uso de um ambiente virtual (venv).
-
-### 2. Instalação
-Clone o repositório e instale as dependências:
-
-```bash
-# Clone o repositório
-git clone [https://github.com/seu-usuario/caixa-louvor-eterno.git](https://github.com/seu-usuario/caixa-louvor-eterno.git)
-
-# Entre na pasta do projeto
-cd caixa-louvor-eterno
-
-# Instale as bibliotecas necessárias
-pip install -r requirements.txt
