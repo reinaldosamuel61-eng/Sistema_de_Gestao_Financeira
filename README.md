@@ -4,7 +4,7 @@
 ![Streamlit](https://img.shields.io/badge/Streamlit-1.x-FF4B4B.svg)
 ![Firebase](https://img.shields.io/badge/Firebase-Firestore-FFCA28.svg)
 
-Um sistema web completo e responsivo para a gestão financeira do departamento/grupo **Louvor Eterno**. Desenvolvido para facilitar o controle de fluxo de caixa (entradas, saídas e transferências), gerar relatórios automáticos e manter os dados seguros e sincronizados na nuvem.
+Um sistema web completo e responsivo para a gestão financeira de departamentos/grupos de igrejas. Desenvolvido para facilitar o controle de fluxo de caixa (entradas, saídas e transferências), gerar relatórios automáticos e manter os dados seguros e sincronizados na nuvem.
 
 ---
 
