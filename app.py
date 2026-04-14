@@ -9,7 +9,7 @@ import firebase_admin
 from firebase_admin import credentials, firestore
 
 # --- 1. CONFIGURAÇÃO DA PÁGINA ---
-st.set_page_config(page_title="GESTÃO FINANCEIRA", page_icon="💰", layout="wide")
+st.set_page_config(page_title="SISTEMA DE GESTÃO FINANCEIRA", page_icon="💰", layout="wide")
 
 # --- 2. ESTILO CSS GERAL (PADRONIZAÇÃO ABSOLUTA E BOTÕES DE APAGAR) ---
 st.markdown('<meta name="google" content="notranslate">', unsafe_allow_html=True)
@@ -52,7 +52,7 @@ div[data-testid="stMetric"] { background-color: #1e293b !important; border-radiu
     background-color: #4f46e5 !important; box-shadow: 0 0 15px rgba(99, 102, 241, 0.4) !important; color: white !important; 
 }
 
-/* BOTÃO APAGAR (VISUAL COM TEXTO) */
+/* BOTÃO APAGAR (ESTILO TEXTO VERMELHO) */
 .delete-btn [data-testid="baseButton-secondary"] {
     background-color: rgba(244, 63, 94, 0.1) !important;
     border: 1px solid #f43f5e !important;
@@ -75,7 +75,7 @@ div[data-testid="stMetric"] { background-color: #1e293b !important; border-radiu
 [data-testid="stFileUploadDropzone"] { border: none !important; background-color: transparent !important; padding: 0 !important; min-height: 0 !important; }
 [data-testid="stFileUploadDropzone"] > div > svg, [data-testid="stFileUploadDropzone"] > div > small, [data-testid="stFileUploadDropzone"] > div > span { display: none !important; }
 [data-testid="stFileUploadDropzone"] button { color: transparent !important; position: relative !important; }
-[data-testid="stFileUploadDropzone"] button::after { content: "\F2B8  IMPORTAR BACKUP"; font-family: "bootstrap-icons"; position: absolute !important; top: 0; left: 0; right: 0; bottom: 0; display: flex !important; align-items: center !important; justify-content: center !important; color: white !important; font-size: 14px !important; }
+[data-testid="stFileUploadDropzone"] button::after { content: "\F2B8  IMPORTAR BACKUP"; font-family: "bootstrap-icons"; position: absolute !important; top: 0; left: 0; right: 0; bottom: 0; display: flex !important; align-items: center !important; justify-content: center !important; color: white !important; font-size: 14px !important; text-transform: uppercase !important; }
 
 /* FORMULÁRIOS E INPUTS */
 .stTextInput>div>div>input, .stSelectbox>div>div>div, .stDateInput>div>div>input, .stNumberInput>div>div>input { background-color: #1e293b !important; color: #f8fafc !important; border: 1px solid #334155 !important; border-radius: 10px; }
@@ -89,25 +89,19 @@ div[data-testid="stPopover"] > button { background-color: transparent !important
 @keyframes toastAutoClose { 0% { opacity: 0; transform: translate(-50%, -30px); } 15% { opacity: 1; transform: translate(-50%, 0); } 85% { opacity: 1; transform: translate(-50%, 0); } 100% { opacity: 0; transform: translate(-50%, -30px); visibility: hidden; } }
 </style>""", unsafe_allow_html=True)
 
-# Cores para os gráficos
-COLORS_ENTRADA = ['#10b981', '#34d399', '#6ee7b7', '#059669']
-COLORS_SAIDA = ['#f43f5e', '#fb7185', '#fda4af', '#be123c']
-
 # --- 3. INICIALIZAÇÃO FIREBASE ---
 @st.cache_resource
 def init_firebase():
     if not firebase_admin._apps:
         try:
             if "firebase" not in st.secrets:
-                st.error("Configuração '[firebase]' não encontrada.")
                 return None
             cred_dict = dict(st.secrets["firebase"])
             cred_dict["private_key"] = cred_dict["private_key"].replace("\\n", "\n")
             cred = credentials.Certificate(cred_dict)
             firebase_admin.initialize_app(cred)
             return firestore.client()
-        except Exception as e:
-            st.error(f"Erro Firebase: {e}")
+        except Exception:
             return None
     else:
         return firestore.client()
@@ -166,7 +160,7 @@ def carregar_categorias():
 def salvar_categorias_db(categorias):
     if db: db.collection('configuracoes').document('categorias').set(categorias)
 
-# --- 4. INICIALIZAÇÃO DE ESTADOS ---
+# --- 4. INICIALIZAÇÃO DE ESTADOS (INCLUINDO FIX PARA msg_import) ---
 if 'autenticado' not in st.session_state: st.session_state.autenticado = False
 if 'login_sequence' not in st.session_state: st.session_state.login_sequence = False
 if 'confirmar_lancamento' not in st.session_state: st.session_state.confirmar_lancamento = False
@@ -183,23 +177,21 @@ if 'categorias' not in st.session_state and db is not None:
     st.session_state.categorias = carregar_categorias()
 
 def confirmar_exclusao(doc_id):
-    excluir_lancamento_db(doc_id)
-    st.session_state.id_excluir = None
-    st.session_state.msg_icon = "bi bi-trash-fill"
-    st.session_state.msg_sucesso = "LANÇAMENTO EXCLUÍDO COM SUCESSO!"
+    excluir_lancamento_db(doc_id); st.session_state.id_excluir = None
+    st.session_state.msg_icon = "bi bi-trash-fill"; st.session_state.msg_sucesso = "LANÇAMENTO EXCLUÍDO COM SUCESSO!"
 
 def cancelar_exclusao(): st.session_state.id_excluir = None
 def cancelar_saida(): st.session_state.menu_principal = "Resumo"
 
 # --- 5. SISTEMA DE LOGIN ---
 if not st.session_state.autenticado:
-    st.markdown("<style>.main .block-container { display: flex; flex-direction: column; justify-content: center; min-height: 85vh; } div[data-testid='stVerticalBlockBorderWrapper'] { background-color: #1e293b !important; border-radius: 15px !important; padding: 25px !important; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.3) !important; border: none !important; border-left: 6px solid #6366f1 !important; }</style>", unsafe_allow_html=True)
+    st.markdown("<style>.main .block-container { display: flex; flex-direction: column; justify-content: center; min-height: 85vh; }</style>", unsafe_allow_html=True)
     st.markdown("<h2 style='text-align: center; font-weight: 900; margin-bottom: 40px; color: #f8fafc; letter-spacing: 1px;'>SISTEMA DE GESTÃO FINANCEIRA</h2>", unsafe_allow_html=True)
     col_l1, col_l2, col_l3 = st.columns([1, 1.2, 1])
     with col_l2:
         with st.container(border=True):
             st.markdown("<h4 style='text-align: center; color: #f8fafc; margin-bottom: 25px;'><i class='bi bi-lock-fill' style='color: #6366f1; margin-right: 10px;'></i>Acesso Restrito</h4>", unsafe_allow_html=True)
-            chave = st.text_input("Senha", type="password", placeholder="Digite a senha de acesso...", label_visibility="collapsed", autocomplete="new-password")
+            chave = st.text_input("Senha", type="password", placeholder="Digite a senha de acesso...", label_visibility="collapsed")
             if st.button("ACESSAR SISTEMA"):
                 if chave == st.secrets.get("chave_grupo", "admin"):
                     st.session_state.autenticado = True; st.session_state.login_sequence = True; st.rerun()
@@ -207,6 +199,7 @@ if not st.session_state.autenticado:
 else:
     if db is None: st.error("Erro de conexão."); st.stop()
 
+    # --- ÁREA DE NOTIFICAÇÕES ---
     if st.session_state.login_sequence:
         st.markdown(r"""<div class="feedback-float"><i class="bi bi-person-check"></i> BEM-VINDO AO SISTEMA!</div>""", unsafe_allow_html=True)
         st.markdown(r"""<div class="feedback-float-delayed"><i class="bi bi-database-check"></i> BANCO DE DADOS CONECTADO COM SUCESSO!</div>""", unsafe_allow_html=True)
@@ -230,7 +223,7 @@ else:
     
     df_geral = carregar_dados()
 
-    # Saldo Real (Soma de tudo)
+    # Saldos reais
     especie = 0.0; pix = 0.0
     if not df_geral.empty:
         especie += df_geral[(df_geral['Local'].isin(['Espécie', 'Dinheiro'])) & (df_geral['Tipo'].isin(['Entrada', 'Saída']))]['Valor'].sum()
@@ -316,6 +309,7 @@ else:
                     pdf.cell(25, 8, s_str(r['Data']), 1, 0, 'C'); pdf.cell(75, 8, s_str(str(r['Descrição'])[:40]), 1, 0, 'L'); pdf.cell(40, 8, s_str(str(r['Categoria'])[:18]), 1, 0, 'C'); pdf.cell(20, 8, s_str(tipo_pdf), 1, 0, 'C'); pdf.cell(20, 8, s_str(f"{r['Valor']:,.2f}"), 1, 1, 'R')
                 pdf.ln(20); pdf.set_font("Arial", '', 10); pdf.cell(60, 5, "_______________________", 0, 0, 'C'); pdf.cell(60, 5, "_______________________", 0, 0, 'C'); pdf.cell(60, 5, "_______________________", 0, 1, 'C')
                 pdf.cell(60, 5, s_str("Pastor"), 0, 0, 'C'); pdf.cell(60, 5, s_str("Líder de Jovens"), 0, 0, 'C'); pdf.cell(60, 5, s_str("Tesoureiro"), 0, 1, 'C'); return pdf.output(dest="S").encode('latin-1')
+            
             st.markdown("<br>", unsafe_allow_html=True)
             cb1, cb2 = st.columns(2)
             with cb1: st.download_button(label="📄 GERAR RELATÓRIO PDF", data=gerar_relatorio_pdf_pro(df_f, datas_sel, saldo_anterior), file_name=f"Relatorio_{datetime.now().strftime('%d%m%Y')}.pdf", type="primary", use_container_width=True)
@@ -357,14 +351,14 @@ else:
                     st.markdown("<h5 style='text-align: center; color: #10b981; font-size: 0.8rem;'>ORIGEM DAS ENTRADAS (R$)</h5>", unsafe_allow_html=True)
                     fig = go.Figure(go.Bar(x=dg_ent['Categoria'], y=dg_ent['Valor'], marker_color='#10b981', text=[f"R$ {v:,.2f}" for v in dg_ent['Valor']], textposition='auto'))
                     fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(t=10, b=10, l=10, r=10), height=350, font=dict(color="#f8fafc"), xaxis=dict(showgrid=False, tickangle=-45), yaxis=dict(showgrid=True, gridcolor="rgba(255,255,255,0.05)"))
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, use_container_width=True, config={'staticPlot': True})
             with cg2:
                 dg_sai = df_f[df_f['Tipo'] == 'Saída'].groupby('Categoria')['Valor'].apply(lambda x: abs(x.sum())).sort_values(ascending=False).reset_index()
                 if not dg_sai.empty:
                     st.markdown("<h5 style='text-align: center; color: #f43f5e; font-size: 0.8rem;'>DESTINO DOS GASTOS (R$)</h5>", unsafe_allow_html=True)
                     fig = go.Figure(go.Bar(x=dg_sai['Categoria'], y=dg_sai['Valor'], marker_color='#f43f5e', text=[f"R$ {v:,.2f}" for v in dg_sai['Valor']], textposition='auto'))
                     fig.update_layout(paper_bgcolor='rgba(0,0,0,0)', plot_bgcolor='rgba(0,0,0,0)', margin=dict(t=10, b=10, l=10, r=10), height=350, font=dict(color="#f8fafc"), xaxis=dict(showgrid=False, tickangle=-45), yaxis=dict(showgrid=True, gridcolor="rgba(255,255,255,0.05)"))
-                    st.plotly_chart(fig, use_container_width=True)
+                    st.plotly_chart(fig, use_container_width=True, config={'staticPlot': True})
         st.markdown('<a href="#topo_hist" target="_self" class="nav-btn-premium" style="margin-top: 60px;"><i class="bi bi-arrow-up-circle"></i> VOLTAR AO TOPO</a>', unsafe_allow_html=True)
 
     elif menu == "Lançar":
@@ -410,13 +404,13 @@ else:
             st.write("**GANHOS**"); new_e = st.text_input("NOVA ENTRADA")
             if st.button("ADICIONAR", key="add_e") and new_e: st.session_state.categorias["entrada"].append(new_e.strip()); salvar_categorias_db(st.session_state.categorias); st.rerun()
             for c in st.session_state.categorias["entrada"]:
-                col_a, col_b = st.columns([8, 2]); col_a.write(f"• {c}")
+                col_a, col_b = st.columns([7, 3]); col_a.write(f"• {c}")
                 with col_b: st.markdown('<div class="delete-btn">', unsafe_allow_html=True); st.button("APAGAR", key=f"de_{c}", on_click=lambda cat=c: (st.session_state.categorias["entrada"].remove(cat), salvar_categorias_db(st.session_state.categorias))); st.markdown('</div>', unsafe_allow_html=True)
         with c2:
             st.write("**GASTOS**"); new_s = st.text_input("NOVA SAÍDA")
             if st.button("ADICIONAR", key="add_s") and new_s: st.session_state.categorias["saida"].append(new_s.strip()); salvar_categorias_db(st.session_state.categorias); st.rerun()
             for c in st.session_state.categorias["saida"]:
-                col_a, col_b = st.columns([8, 2]); col_a.write(f"• {c}")
+                col_a, col_b = st.columns([7, 3]); col_a.write(f"• {c}")
                 with col_b: st.markdown('<div class="delete-btn">', unsafe_allow_html=True); st.button("APAGAR", key=f"ds_{c}", on_click=lambda cat=c: (st.session_state.categorias["saida"].remove(cat), salvar_categorias_db(st.session_state.categorias))); st.markdown('</div>', unsafe_allow_html=True)
         st.divider(); st.markdown("#### BACKUP E SINCRONIZAÇÃO")
         if st.session_state.msg_import: st.markdown(f"""<div class="feedback-float"><i class="bi bi-cloud-check"></i> {st.session_state.msg_import}</div>""", unsafe_allow_html=True); st.session_state.msg_import = ""
